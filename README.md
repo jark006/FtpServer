@@ -1,5 +1,5 @@
 # FtpServer
 
-简易FTP文件服务器
+FTP文件服务器
 
 ![](preview.png)
