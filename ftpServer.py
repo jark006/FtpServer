@@ -3,17 +3,17 @@ import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser
 import tkinter
 from tkinter import ttk, scrolledtext, filedialog
 
-from pyftpdlib.authorizers import DummyAuthorizer
-from pyftpdlib.handlers import FTPHandler
-from pyftpdlib.servers import ThreadedFTPServer
-from pyftpdlib.log import logger
+from mypyftpdlib.authorizers import DummyAuthorizer
+from mypyftpdlib.handlers import FTPHandler
+from mypyftpdlib.servers import ThreadedFTPServer
+from mypyftpdlib.log import logger
 
 from PIL import ImageTk
 
 import win32clipboard
 import win32con
 
-# pip install pyftpdlib Pillow pypiwin32 pyinstaller
+# pip install Pillow pypiwin32 pyinstaller
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico
@@ -28,7 +28,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "V1.5"
+appVersion = "V1.6"
 appAuthor = "Github@JARK006"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
 
@@ -38,6 +38,7 @@ logThreadrunning = True
 permReadOnly = "elr"
 permReadWrite = "elradfmwMT"
 
+isGBKEncode = False
 isSupportdIPV6 = False
 isFTP_V4Running = False
 isFTP_V6Running = False
@@ -108,14 +109,12 @@ def btn_start():
     global ipText
     global menu
     global isReadOnly
-    global permStr
+    global isGBK_Encoding
 
     userNameStr = userName.get()
     userPasswordStr = userPassword.get()
     if len(userPasswordStr) == 0:
         userPasswordStr = userNameStr
-
-    permStr = permReadOnly if isReadOnly.get() else permReadWrite
 
     ipInfo = getTips()
 
@@ -146,12 +145,12 @@ def btn_start():
         logger.info("Error: 无法启动线程")
 
     logger.info(
-        "用户名："
-        + userNameStr
-        + " 密码："
-        + userPasswordStr
-        + " 权限："
-        + ("只读" if isReadOnly.get() else "读写")
+        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}".format(
+            userNameStr if len(userNameStr) > 0 else "匿名访问(anonymous)",
+            userPasswordStr,
+            ("只读" if isReadOnly.get() else "读写"),
+            ("GBK" if isGBK_Encoding.get() else "UTF-8"),
+        )
     )
 
 
@@ -161,7 +160,8 @@ def startServer():
     global v4port
     global userNameStr
     global userPasswordStr
-    global permStr
+    global isReadOnly
+    global isGBK_Encoding
 
     logger.info("[FTP ipv4]开启中...")
     dir = ftpDir.get()
@@ -170,6 +170,8 @@ def startServer():
         return
 
     authorizer = DummyAuthorizer()
+    permStr = permReadOnly if isReadOnly.get() else permReadWrite
+    encodingStr = "gbk" if isGBK_Encoding.get() else "utf8"
 
     if len(userNameStr) > 0:
         authorizer.add_user(userNameStr, userPasswordStr, dir, perm=permStr)
@@ -178,6 +180,7 @@ def startServer():
 
     handler = FTPHandler
     handler.authorizer = authorizer
+    handler.encoding = encodingStr
     server = ThreadedFTPServer(("0.0.0.0", v4port), handler)
     logger.info("[FTP ipv4]开始运行")
     isFTP_V4Running = True
@@ -188,6 +191,7 @@ def startServer():
 
 def startServerV6():
     global isReadOnly
+    global isGBK_Encoding
     global serverV6
     global isFTP_V6Running
     global v6port
@@ -199,7 +203,10 @@ def startServerV6():
     if not os.path.exists(dir):
         logger.info("目录: [ " + dir + " ]不存在！")
         return
+
     authorizer = DummyAuthorizer()
+    permStr = permReadOnly if isReadOnly.get() else permReadWrite
+    encodingStr = "gbk" if isGBK_Encoding.get() else "utf8"
 
     if len(userNameStr) > 0:
         authorizer.add_user(userNameStr, userPasswordStr, dir, perm=permStr)
@@ -208,6 +215,7 @@ def startServerV6():
 
     handler = FTPHandler
     handler.authorizer = authorizer
+    handler.encoding = encodingStr
     serverV6 = ThreadedFTPServer(("::", v6port), handler)
     logger.info("[FTP ipv6]开始运行")
     isFTP_V6Running = True
@@ -303,8 +311,10 @@ def getTips():
     if v6port <= 0 or v6port >= 65535:
         v6port = 30021
 
-    ipInfo = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。\n默认UTF-8编码，右键可复制地址"
-    ipList = []
+    ipv4IPstr = ""
+    ipv6IPstr = ""
+    ipv4List = []
+    ipv6List = []
     for item in addrs:
         ipStr = item[4][0]
         if ":" in ipStr:  # IPV6
@@ -312,37 +322,40 @@ def getTips():
             fullLink = (
                 "ftp://[" + ipStr + "]" + ("" if v6port == 21 else (":" + str(v6port)))
             )
-            ipList.append(fullLink)
+            ipv6List.append(fullLink)
             if ipStr[:4] == "fe80":
-                ipInfo += "\n[IPV6   局域网] " + fullLink
+                ipv6IPstr += "\n[IPV6   局域网] " + fullLink
             elif ipStr[:4] == "240e":
-                ipInfo += "\n[IPV6 电信公网] " + fullLink
+                ipv6IPstr += "\n[IPV6 电信公网] " + fullLink
             elif ipStr[:4] == "2409":
-                ipInfo += "\n[IPV6 联通公网] " + fullLink
+                ipv6IPstr += "\n[IPV6 联通公网] " + fullLink
             elif ipStr[:4] == "2409":
-                ipInfo += "\n[IPV6 移动/铁通网] " + fullLink
+                ipv6IPstr += "\n[IPV6 移动/铁通网] " + fullLink
             else:
-                ipInfo += "\n[IPV6   公网] " + fullLink
+                ipv6IPstr += "\n[IPV6   公网] " + fullLink
             # img = qrcode.make("ftp://["+ipStr+"]:30021")
             # ipv6QrcodeImgList.append(img)
         else:  # IPV4
             fullLink = "ftp://" + ipStr + ("" if v4port == 21 else (":" + str(v4port)))
-            ipList.append(fullLink)
+            ipv4List.append(fullLink)
             if is_internal_ip(ipStr):
                 if ipStr[:3] == "10." or ipStr[:3] == "100":
-                    ipInfo += "\n[IPV4 运营商局域网] " + fullLink
+                    ipv4IPstr += "\n[IPV4 运营商局域网] " + fullLink
                 else:
-                    ipInfo += "\n[IPV4 局域网] " + fullLink
+                    ipv4IPstr += "\n[IPV4 局域网] " + fullLink
             else:
-                ipInfo += "\n[IPV4   公网] " + fullLink
+                ipv4IPstr += "\n[IPV4   公网] " + fullLink
 
-    return ipInfo
+    ipList = ipv4List + ipv6List
+    ipInfo = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。\n若中文乱码则需更换编码方式，再重启服务。以下为本机所有IP地址，右键可复制。\n"
+    return ipInfo + ipv4IPstr + ipv6IPstr
 
 
 def main():
 
     global window
     global isReadOnly
+    global isGBK_Encoding
     global ftpDir
     global myConsole
     global isSupportdIPV6
@@ -382,31 +395,24 @@ def main():
     window.geometry(str(scale(winWidht)) + "x" + str(scale(winHeight)))
 
     ttk.Button(window, text="开启", command=btn_start).place(
-        x=scale(5), y=scale(5), width=scale(60), height=scale(25)
+        x=scale(10), y=scale(10), width=scale(60), height=scale(25)
     )
     ttk.Button(window, text="停止", command=btn_close).place(
-        x=scale(65), y=scale(5), width=scale(60), height=scale(25)
+        x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
-    isReadOnly = tkinter.BooleanVar()
-    ttk.Radiobutton(window, text="读写", variable=isReadOnly, value=False).place(
-        x=scale(130), y=scale(5), width=scale(60), height=scale(25)
-    )
-    ttk.Radiobutton(window, text="只读", variable=isReadOnly, value=True).place(
-        x=scale(190), y=scale(5), width=scale(60), height=scale(25)
-    )
     ttk.Button(window, text="设置目录", command=getDir).place(
-        x=scale(250), y=scale(5), width=scale(70), height=scale(25)
+        x=scale(150), y=scale(10), width=scale(70), height=scale(25)
     )
 
     ftpDir = tkinter.StringVar()
     ttk.Entry(window, textvariable=ftpDir, width=scale(36)).place(
-        x=scale(325), y=scale(5), width=scale(195), height=scale(25)
+        x=scale(230), y=scale(10), width=scale(280), height=scale(25)
     )
     ftpDir.set(os.path.dirname(sys.argv[0]))
 
     ttk.Button(window, text="关于/更新", command=openGithub).place(
-        x=scale(525), y=scale(5), width=scale(70), height=scale(25)
+        x=scale(520), y=scale(10), width=scale(70), height=scale(25)
     )
 
     ttk.Label(window, text="用户名").place(
@@ -418,30 +424,46 @@ def main():
     )
 
     ttk.Label(window, text="密码").place(
-        x=scale(180), y=scale(40), width=scale(40), height=scale(25)
+        x=scale(10), y=scale(70), width=scale(40), height=scale(25)
     )
     userPassword = tkinter.StringVar()
     ttk.Entry(window, textvariable=userPassword, width=scale(12)).place(
-        x=scale(220), y=scale(40), width=scale(100), height=scale(25)
+        x=scale(60), y=scale(70), width=scale(100), height=scale(25)
     )
 
     ttk.Label(window, text="IPV4端口").place(
-        x=scale(340), y=scale(40), width=scale(80), height=scale(25)
+        x=scale(180), y=scale(40), width=scale(80), height=scale(25)
     )
     ipv4Port = tkinter.StringVar()
     ttk.Entry(window, textvariable=ipv4Port, width=scale(8)).place(
-        x=scale(400), y=scale(40), width=scale(60), height=scale(25)
+        x=scale(240), y=scale(40), width=scale(60), height=scale(25)
     )
     ipv4Port.set("21")
 
     ttk.Label(window, text="IPV6端口").place(
-        x=scale(460), y=scale(40), width=scale(80), height=scale(25)
+        x=scale(180), y=scale(70), width=scale(80), height=scale(25)
     )
     ipv6Port = tkinter.StringVar()
     ttk.Entry(window, textvariable=ipv6Port, width=scale(8)).place(
-        x=scale(520), y=scale(40), width=scale(60), height=scale(25)
+        x=scale(240), y=scale(70), width=scale(60), height=scale(25)
     )
     ipv6Port.set("30021")
+
+    isGBK_Encoding = tkinter.BooleanVar()
+    ttk.Radiobutton(
+        window, text="UTF-8 编码", variable=isGBK_Encoding, value=False
+    ).place(x=scale(320), y=scale(40), width=scale(100), height=scale(25))
+    ttk.Radiobutton(window, text="GBK 编码", variable=isGBK_Encoding, value=True).place(
+        x=scale(320), y=scale(70), width=scale(100), height=scale(25)
+    )
+
+    isReadOnly = tkinter.BooleanVar()
+    ttk.Radiobutton(window, text="读写", variable=isReadOnly, value=False).place(
+        x=scale(420), y=scale(40), width=scale(100), height=scale(25)
+    )
+    ttk.Radiobutton(window, text="只读", variable=isReadOnly, value=True).place(
+        x=scale(420), y=scale(70), width=scale(100), height=scale(25)
+    )
 
     ipInfo = getTips()
     ipText = tkinter.Text(
@@ -449,7 +471,7 @@ def main():
     )
     ipText.insert(tkinter.INSERT, ipInfo)
     ipText.configure(state="disable")
-    ipText.place(x=scale(10), y=scale(70), width=scale(580), height=scale(180))
+    ipText.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     myConsole = scrolledtext.ScrolledText(
         window, fg="#dddddd", bg="#282c34", wrap=tkinter.CHAR

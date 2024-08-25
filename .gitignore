@@ -2,3 +2,4 @@ build
 dist
 *.spec
 env
+mypyftpdlib/__pycache__
