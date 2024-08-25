@@ -1,4 +1,4 @@
-import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser
+import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, json
 
 import tkinter
 from tkinter import ttk, scrolledtext, filedialog
@@ -28,7 +28,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "V1.6"
+appVersion = "v1.7"
 appAuthor = "Github@JARK006"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
 
@@ -43,23 +43,47 @@ isSupportdIPV6 = False
 isFTP_V4Running = False
 isFTP_V6Running = False
 
+settingParameters: dict[str, str] = {
+    "rootDir": "",
+    "userName": "",
+    "userPassword": "",
+    "ipv4Port": "21",
+    "ipv6Port": "30021",
+    "isGBK": "0",
+    "isReadOnly": "0",
+}
 
-class myStdout:  # 重定向类
+
+def load_variables(filename="FtpServer.json"):
+    global settingParameters
+
+    file_path = os.path.join(os.path.dirname(sys.argv[0]), filename)
+
+    if not os.path.exists(file_path):
+        return
+
+    with open(file_path, "r") as file:
+        variables = json.load(file)
+
+    for key, value in variables.items():
+        if key in settingParameters:
+            settingParameters[key] = value
+
+
+def save_variables(filename="FtpServer.json"):
+    global settingParameters
+
+    with open(os.path.join(os.path.dirname(sys.argv[0]), filename), "w") as file:
+        json.dump(settingParameters, file)
+
+
+class myStdout:  # 重定向输出
     def __init__(self):
-        # 将其备份
-        self.stdoutbak = sys.stdout
-        self.stderrbak = sys.stderr
-        # 重定向
         sys.stdout = self
         sys.stderr = self
 
     def write(self, info):
         logMsg.put(info)
-
-    def restoreStd(self):
-        # 恢复标准输出
-        sys.stdout = self.stdoutbak
-        sys.stderr = self.stderrbak
 
 
 def set_clipboard(data):
@@ -106,6 +130,8 @@ def btn_start():
     global userPassword
     global userNameStr
     global userPasswordStr
+    global ipv4Port
+    global ipv6Port
     global ipText
     global menu
     global isReadOnly
@@ -115,6 +141,15 @@ def btn_start():
     userPasswordStr = userPassword.get()
     if len(userPasswordStr) == 0:
         userPasswordStr = userNameStr
+
+    settingParameters["rootDir"] = ftpDir.get()
+    settingParameters["userName"] = userNameStr
+    settingParameters["userPassword"] = userPasswordStr
+    settingParameters["ipv4Port"] = ipv4Port.get()
+    settingParameters["ipv6Port"] = ipv6Port.get()
+    settingParameters["isGBK"] = "1" if isGBK_Encoding.get() else "0"
+    settingParameters["isReadOnly"] = "1" if isReadOnly.get() else "0"
+    save_variables()
 
     ipInfo = getTips()
 
@@ -142,10 +177,10 @@ def btn_start():
                 serverThreadV6 = threading.Thread(target=startServerV6)
                 serverThreadV6.start()
     except:
-        logger.info("Error: 无法启动线程")
+        print("Error: 无法启动线程")
 
-    logger.info(
-        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}".format(
+    print(
+        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}\n".format(
             userNameStr if len(userNameStr) > 0 else "匿名访问(anonymous)",
             userPasswordStr,
             ("只读" if isReadOnly.get() else "读写"),
@@ -347,7 +382,7 @@ def getTips():
                 ipv4IPstr += "\n[IPV4   公网] " + fullLink
 
     ipList = ipv4List + ipv6List
-    ipInfo = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。\n若中文乱码则需更换编码方式，再重启服务。以下为本机所有IP地址，右键可复制。\n"
+    ipInfo = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。服务正常开启才会保存设置。以下为本机所有IP地址，右键可复制。\n"
     return ipInfo + ipv4IPstr + ipv6IPstr
 
 
@@ -409,7 +444,6 @@ def main():
     ttk.Entry(window, textvariable=ftpDir, width=scale(36)).place(
         x=scale(230), y=scale(10), width=scale(280), height=scale(25)
     )
-    ftpDir.set(os.path.dirname(sys.argv[0]))
 
     ttk.Button(window, text="关于/更新", command=openGithub).place(
         x=scale(520), y=scale(10), width=scale(70), height=scale(25)
@@ -489,6 +523,25 @@ def main():
 
     # 设置程序缩放
     window.tk.call("tk", "scaling", ScaleFactor / 75)
+
+    load_variables()
+
+    if os.path.exists(settingParameters["rootDir"]):
+        ftpDir.set(settingParameters["rootDir"])
+    else:
+        ftpDir.set(os.path.dirname(sys.argv[0]))
+
+    if len(settingParameters["userName"]) > 0:
+        userName.set(settingParameters["userName"])
+    if len(settingParameters["userPassword"]) > 0:
+        userPassword.set(settingParameters["userPassword"])
+    if len(settingParameters["ipv4Port"]) > 0:
+        ipv4Port.set(settingParameters["ipv4Port"])
+    if len(settingParameters["ipv6Port"]) > 0:
+        ipv6Port.set(settingParameters["ipv6Port"])
+
+    isGBK_Encoding.set(True if settingParameters["isGBK"] == "1" else False)
+    isReadOnly.set(True if settingParameters["isReadOnly"] == "1" else False)
 
     window.mainloop()  # 显示窗体
 

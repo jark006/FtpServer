@@ -2,4 +2,5 @@ build
 dist
 *.spec
 env
+FtpServer.json
 mypyftpdlib/__pycache__
