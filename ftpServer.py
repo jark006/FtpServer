@@ -28,7 +28,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.7"
+appVersion = "v1.8"
 appAuthor = "Github@JARK006"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
 
@@ -500,8 +500,8 @@ def main():
     )
 
     ipInfo = getTips()
-    ipText = tkinter.Text(
-        window, height=len(ipList) + 2, fg="black", bg="#e0e0e0", wrap=tkinter.CHAR
+    ipText = scrolledtext.ScrolledText(
+        window, fg="black", bg="#e0e0e0", wrap=tkinter.CHAR
     )
     ipText.insert(tkinter.INSERT, ipInfo)
     ipText.configure(state="disable")
