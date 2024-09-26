@@ -13,10 +13,11 @@ from PIL import ImageTk
 import win32clipboard
 import win32con
 
-# pip install Pillow pypiwin32 pyinstaller
+# pip install Pillow pypiwin32 pyinstaller nuitka
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico
+# nuitka --standalone --onefile --enable-plugin=tk-inter --windows-disable-console .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico
 """
 import base64
 with open(r"ico64x64.ico", "rb") as f:
@@ -28,7 +29,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.8"
+appVersion = "v1.9"
 appAuthor = "Github@JARK006"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
 
@@ -317,16 +318,21 @@ def logThreadFun():
     global myConsole
     cnt = 0
     while logThreadrunning:
-        while not logMsg.empty():
-            cnt += 1
-            if cnt > 1000:
-                cnt = 0
-                myConsole.delete(0.0, tkinter.END)
+        if logMsg.empty():
+            time.sleep(0.1)
+            continue
 
-            logInfo = logMsg.get()
-            myConsole.insert("end", logInfo)
-            myConsole.see(tkinter.END)
-        time.sleep(0.1)
+        cnt += 1
+        if cnt > 100:
+            cnt = 0
+            myConsole.delete(0.0, tkinter.END)
+
+        logInfo = ''
+        while not logMsg.empty():
+            logInfo += logMsg.get()
+
+        myConsole.insert("end", logInfo)
+        myConsole.see(tkinter.END)
 
 
 def getTips():
@@ -368,8 +374,6 @@ def getTips():
                 ipv6IPstr += "\n[IPV6 移动/铁通网] " + fullLink
             else:
                 ipv6IPstr += "\n[IPV6   公网] " + fullLink
-            # img = qrcode.make("ftp://["+ipStr+"]:30021")
-            # ipv6QrcodeImgList.append(img)
         else:  # IPV4
             fullLink = "ftp://" + ipStr + ("" if v4port == 21 else (":" + str(v4port)))
             ipv4List.append(fullLink)
@@ -501,14 +505,14 @@ def main():
 
     ipInfo = getTips()
     ipText = scrolledtext.ScrolledText(
-        window, fg="black", bg="#e0e0e0", wrap=tkinter.CHAR
+        window, bg="#dddddd", wrap=tkinter.CHAR
     )
     ipText.insert(tkinter.INSERT, ipInfo)
     ipText.configure(state="disable")
     ipText.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     myConsole = scrolledtext.ScrolledText(
-        window, fg="#dddddd", bg="#282c34", wrap=tkinter.CHAR
+        window, bg="#dddddd", wrap=tkinter.CHAR
     )
     myConsole.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
 

@@ -4,3 +4,7 @@ dist
 env
 FtpServer.json
 mypyftpdlib/__pycache__
+ftpServer.onefile-build
+ftpServer.build
+ftpServer.dist
+ftpServer.exe
