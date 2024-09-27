@@ -29,8 +29,9 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.9"
+appVersion = "v1.10"
 appAuthor = "Github@JARK006"
+githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
 
 logMsg = queue.Queue()
@@ -39,7 +40,6 @@ logThreadrunning = True
 permReadOnly = "elr"
 permReadWrite = "elradfmwMT"
 
-isGBKEncode = False
 isSupportdIPV6 = False
 isFTP_V4Running = False
 isFTP_V6Running = False
@@ -50,8 +50,8 @@ settingParameters: dict[str, str] = {
     "userPassword": "",
     "ipv4Port": "21",
     "ipv6Port": "30021",
-    "isGBK": "0",
-    "isReadOnly": "0",
+    "isGBK": "1",
+    "isReadOnly": "1",
 }
 
 
@@ -138,12 +138,17 @@ def btn_start():
     global isReadOnly
     global isGBK_Encoding
 
+    rootDirStr = ftpDir.get()
+    if not os.path.exists(rootDirStr):
+        print(f"路径: [ {rootDirStr} ]不存在！请检查路径是否正确或者有没有读取权限。")
+        return
+    
     userNameStr = userName.get()
     userPasswordStr = userPassword.get()
     if len(userPasswordStr) == 0:
         userPasswordStr = userNameStr
 
-    settingParameters["rootDir"] = ftpDir.get()
+    settingParameters["rootDir"] = rootDirStr
     settingParameters["userName"] = userNameStr
     settingParameters["userPassword"] = userPasswordStr
     settingParameters["ipv4Port"] = ipv4Port.get()
@@ -162,18 +167,17 @@ def btn_start():
     menu.delete(0, len(ipList))
     for ip in ipList:
         menu.add_command(label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip))
-
-    # btn_close()
+    
     try:
         if isFTP_V4Running:
-            logger.info("[FTP ipv4]正在运行")
+            print("[FTP ipv4]正在运行")
         else:
             serverThread = threading.Thread(target=startServer)
             serverThread.start()
 
         if isSupportdIPV6:
             if isFTP_V6Running:
-                logger.info("[FTP ipv6]正在运行")
+                print("[FTP ipv6]正在运行")
             else:
                 serverThreadV6 = threading.Thread(target=startServerV6)
                 serverThreadV6.start()
@@ -199,30 +203,25 @@ def startServer():
     global isReadOnly
     global isGBK_Encoding
 
-    logger.info("[FTP ipv4]开启中...")
-    dir = ftpDir.get()
-    if not os.path.exists(dir):
-        logger.info("目录: [ " + dir + " ]不存在！")
-        return
-
+    print("[FTP ipv4]开启中...")
     authorizer = DummyAuthorizer()
     permStr = permReadOnly if isReadOnly.get() else permReadWrite
     encodingStr = "gbk" if isGBK_Encoding.get() else "utf8"
 
     if len(userNameStr) > 0:
-        authorizer.add_user(userNameStr, userPasswordStr, dir, perm=permStr)
+        authorizer.add_user(userNameStr, userPasswordStr, ftpDir.get(), perm=permStr)
     else:
-        authorizer.add_anonymous(dir, perm=permStr)
+        authorizer.add_anonymous(ftpDir.get(), perm=permStr)
 
     handler = FTPHandler
     handler.authorizer = authorizer
     handler.encoding = encodingStr
     server = ThreadedFTPServer(("0.0.0.0", v4port), handler)
-    logger.info("[FTP ipv4]开始运行")
+    print("[FTP ipv4]开始运行")
     isFTP_V4Running = True
     server.serve_forever()
     isFTP_V4Running = False
-    logger.info("已停止[FTP ipv4]")
+    print("已停止[FTP ipv4]")
 
 
 def startServerV6():
@@ -234,30 +233,25 @@ def startServerV6():
     global userNameStr
     global userPasswordStr
 
-    logger.info("[FTP ipv6]开启中...")
-    dir = ftpDir.get()
-    if not os.path.exists(dir):
-        logger.info("目录: [ " + dir + " ]不存在！")
-        return
-
+    print("[FTP ipv6]开启中...")
     authorizer = DummyAuthorizer()
     permStr = permReadOnly if isReadOnly.get() else permReadWrite
     encodingStr = "gbk" if isGBK_Encoding.get() else "utf8"
 
     if len(userNameStr) > 0:
-        authorizer.add_user(userNameStr, userPasswordStr, dir, perm=permStr)
+        authorizer.add_user(userNameStr, userPasswordStr, ftpDir.get(), perm=permStr)
     else:
-        authorizer.add_anonymous(dir, perm=permStr)
+        authorizer.add_anonymous(ftpDir.get(), perm=permStr)
 
     handler = FTPHandler
     handler.authorizer = authorizer
     handler.encoding = encodingStr
     serverV6 = ThreadedFTPServer(("::", v6port), handler)
-    logger.info("[FTP ipv6]开始运行")
+    print("[FTP ipv6]开始运行")
     isFTP_V6Running = True
     serverV6.serve_forever()
     isFTP_V6Running = False
-    logger.info("已停止[FTP ipv6]")
+    print("已停止[FTP ipv6]")
 
 
 def btn_close():
@@ -269,33 +263,36 @@ def btn_close():
     global isFTP_V6Running
 
     if isFTP_V4Running:
-        logger.info("[FTP ipv4]正在停止...")
+        print("[FTP ipv4]正在停止...")
         server.close_all()
         serverThread.join()
-        logger.info("[FTP ipv4]服务线程已退出\n")
+        print("[FTP ipv4]服务线程已退出\n")
     else:
-        logger.info("当前没有[FTP ipv4]服务")
+        print("当前没有[FTP ipv4]服务")
 
     if isFTP_V6Running:
-        logger.info("[FTP ipv6]正在停止...")
+        print("[FTP ipv6]正在停止...")
         serverV6.close_all()
         serverThreadV6.join()
-        logger.info("[FTP ipv6]服务线程已退出\n")
+        print("[FTP ipv6]服务线程已退出\n")
     else:
-        logger.info("当前没有[FTP ipv6]服务")
+        print("当前没有[FTP ipv6]服务")
 
 
-def getDir():
+def pickRootDir():
     global ftpDir
     dir = filedialog.askdirectory()
     if len(dir) == 0:
-        ftpDir.set(os.path.dirname(sys.argv[0]))
-    else:
+        return
+    
+    if os.path.exists(dir):
         ftpDir.set(dir)
+    else:
+        print(f'路径不存在或无访问权限：{dir}')
 
 
 def openGithub():
-    webbrowser.open("https://github.com/jark006/FtpServer")
+    webbrowser.open(githubLink)
 
 
 def handleExit():
@@ -303,10 +300,9 @@ def handleExit():
     global logThreadrunning
     global logThread
 
-    logger.info("等待日志线程退出...")
+    print("等待日志线程退出...")
     logThreadrunning = False
     logThread.join()
-    logger.info("日志线程已退出.")
 
     btn_close()
 
@@ -440,7 +436,7 @@ def main():
         x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
-    ttk.Button(window, text="设置目录", command=getDir).place(
+    ttk.Button(window, text="设置目录", command=pickRootDir).place(
         x=scale(150), y=scale(10), width=scale(70), height=scale(25)
     )
 
