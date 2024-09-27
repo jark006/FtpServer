@@ -239,8 +239,7 @@ class DummyAuthorizer:
             if username == 'anonymous' and \
                     p in self.write_perms and not \
                     warned:
-                warnings.warn("write permissions assigned to anonymous user.",
-                              RuntimeWarning, stacklevel=2)
+                print("\n警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。\n建议给匿名方式选择【只读】权限。\n")
                 warned = 1
 
     def _issubpath(self, a, b):
@@ -451,8 +450,6 @@ else:
             except KeyError:
                 raise AuthorizerError(self.msg_no_such_user)
             else:
-                if not PY3:
-                    home = home.decode('utf8')
                 return home
 
         @staticmethod
@@ -646,10 +643,7 @@ try:
 except ImportError:
     pass
 else:  # pragma: no cover
-    if PY3:
-        import winreg
-    else:
-        import _winreg as winreg
+    import winreg
 
     __all__.extend(['BaseWindowsAuthorizer', 'WindowsAuthorizer'])
 
@@ -718,8 +712,6 @@ else:  # pragma: no cover
                     "No profile directory defined for user %s" % username)
             value = winreg.QueryValueEx(key, "ProfileImagePath")[0]
             home = win32api.ExpandEnvironmentStrings(value)
-            if not PY3 and not isinstance(home, unicode):
-                home = home.decode('utf8')
             return home
 
         @classmethod
@@ -875,6 +867,4 @@ else:  # pragma: no cover
                 home = overridden_home
             else:
                 home = BaseWindowsAuthorizer.get_home_dir(self, username)
-            if not PY3 and not isinstance(home, unicode):
-                home = home.decode('utf8')
             return home
