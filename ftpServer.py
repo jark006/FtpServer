@@ -30,7 +30,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.11"
+appVersion = "v1.10"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
