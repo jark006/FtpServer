@@ -3,6 +3,7 @@ dist
 *.spec
 env
 FtpServer.json
+__pycache__
 mypyftpdlib/__pycache__
 ftpServer.onefile-build
 ftpServer.build

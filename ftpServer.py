@@ -1,4 +1,4 @@
-import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, json
+import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, json, pystray
 
 import tkinter
 from tkinter import ttk, scrolledtext, filedialog
@@ -8,7 +8,8 @@ from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 from mypyftpdlib.log import logger
 
-from PIL import ImageTk
+from PIL import ImageTk, Image
+from io import BytesIO
 
 import win32clipboard
 import win32con
@@ -29,7 +30,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.10"
+appVersion = "v1.11"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
@@ -121,7 +122,7 @@ def is_internal_ip(ip_str):
     )
 
 
-def btn_start():
+def startServer():
     global serverThread
     global serverThreadV6
     global isSupportdIPV6
@@ -254,7 +255,7 @@ def startServerV6():
     print("已停止[FTP ipv6]")
 
 
-def btn_close():
+def closeServer():
     global server
     global serverV6
     global serverThread
@@ -295,18 +296,27 @@ def openGithub():
     webbrowser.open(githubLink)
 
 
-def handleExit():
+def show_window():
+    global window
+    window.deiconify()
+
+def hide_window():
+    global window
+    window.withdraw()
+
+def handleExit(icon: pystray.Icon):
     global window
     global logThreadrunning
     global logThread
 
+    icon.stop()
     print("等待日志线程退出...")
     logThreadrunning = False
     logThread.join()
 
-    btn_close()
-
+    closeServer()
     window.destroy()
+    exit(0)
 
 
 def logThreadFun():
@@ -414,6 +424,10 @@ def main():
 
     mystd = myStdout()  # 实例化重定向类
 
+    strayMenu = (pystray.MenuItem('显示', show_window, default=True), pystray.Menu.SEPARATOR, pystray.MenuItem('退出', handleExit))
+    strayImage = Image.open(BytesIO(base64.b64decode(iconStr)))
+    strayIcon = pystray.Icon("icon", strayImage, "FTP服务器", strayMenu)
+
     logThread = threading.Thread(target=logThreadFun)
     logThread.start()
 
@@ -423,16 +437,16 @@ def main():
     window.tk.call("wm", "iconphoto", window._w, icon_img)
 
     window.resizable(0, 0)  # 固定窗口
-    window.protocol("WM_DELETE_WINDOW", handleExit)
+    window.protocol("WM_DELETE_WINDOW", hide_window)
 
     winWidht = 600
     winHeight = 500
     window.geometry(str(scale(winWidht)) + "x" + str(scale(winHeight)))
 
-    ttk.Button(window, text="开启", command=btn_start).place(
+    ttk.Button(window, text="开启", command=startServer).place(
         x=scale(10), y=scale(10), width=scale(60), height=scale(25)
     )
-    ttk.Button(window, text="停止", command=btn_close).place(
+    ttk.Button(window, text="停止", command=closeServer).place(
         x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
@@ -542,7 +556,8 @@ def main():
 
     isGBK_Encoding.set(True if settingParameters["isGBK"] == "1" else False)
     isReadOnly.set(True if settingParameters["isReadOnly"] == "1" else False)
-
+    
+    threading.Thread(target=strayIcon.run, daemon=True).start()
     window.mainloop()  # 显示窗体
 
 
