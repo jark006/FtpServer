@@ -6,7 +6,6 @@ from tkinter import ttk, scrolledtext, filedialog
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
-from mypyftpdlib.log import logger
 
 from PIL import ImageTk, Image
 from io import BytesIO
@@ -14,7 +13,7 @@ from io import BytesIO
 import win32clipboard
 import win32con
 
-# pip install Pillow pypiwin32 pyinstaller nuitka
+# pip install Pillow pypiwin32 pyinstaller nuitka pystray
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico
@@ -173,7 +172,7 @@ def startServer():
         if isFTP_V4Running:
             print("[FTP ipv4]正在运行")
         else:
-            serverThread = threading.Thread(target=startServer)
+            serverThread = threading.Thread(target=startServerV4)
             serverThread.start()
 
         if isSupportdIPV6:
@@ -195,7 +194,7 @@ def startServer():
     )
 
 
-def startServer():
+def startServerV4():
     global server
     global isFTP_V4Running
     global v4port
