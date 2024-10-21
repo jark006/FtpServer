@@ -33,6 +33,7 @@ appVersion = "v1.10"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。服务正常开启才会保存设置。以下为本机所有IP地址，右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning = True
@@ -49,9 +50,10 @@ settingParameters: dict[str, str] = {
     "userName": "",
     "userPassword": "",
     "ipv4Port": "21",
-    "ipv6Port": "30021",
+    "ipv6Port": "21",
     "isGBK": "1",
     "isReadOnly": "1",
+    "isAutoStartServer": "0",
 }
 
 
@@ -133,8 +135,8 @@ def startServer():
     global userPasswordStr
     global ipv4Port
     global ipv6Port
-    global ipText
-    global menu
+    global tipsTextForm
+    global tipsTextFormRightClickMenu
     global isReadOnly
     global isGBK_Encoding
 
@@ -157,16 +159,14 @@ def startServer():
     settingParameters["isReadOnly"] = "1" if isReadOnly.get() else "0"
     save_variables()
 
-    ipInfo = getTips()
+    tipsTextForm.configure(state="normal")
+    tipsTextForm.delete("0.0", tkinter.END)
+    tipsTextForm.insert(tkinter.INSERT, getTipsAnd_IP_Info())
+    tipsTextForm.configure(state="disable")
 
-    ipText.configure(state="normal")
-    ipText.delete("0.0", tkinter.END)
-    ipText.insert(tkinter.INSERT, ipInfo)
-    ipText.configure(state="disable")
-
-    menu.delete(0, len(ipList))
+    tipsTextFormRightClickMenu.delete(0, len(ipList))
     for ip in ipList:
-        menu.add_command(label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip))
+        tipsTextFormRightClickMenu.add_command(label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip))
     
     try:
         if isFTP_V4Running:
@@ -303,7 +303,7 @@ def hide_window():
     global window
     window.withdraw()
 
-def handleExit(icon: pystray.Icon):
+def handleExit(icon: pystray._base.Icon):
     global window
     global logThreadrunning
     global logThread
@@ -340,13 +340,14 @@ def logThreadFun():
         myConsole.see(tkinter.END)
 
 
-def getTips():
+def getTipsAnd_IP_Info():
     global ipList
     global isSupportdIPV6
     global ipv4Port
     global ipv6Port
     global v4port
     global v6port
+    global tipsTitle
 
     addrs = socket.getaddrinfo(socket.gethostname(), None)
 
@@ -355,7 +356,7 @@ def getTips():
         v4port = 21
     v6port = int(ipv6Port.get())
     if v6port <= 0 or v6port >= 65535:
-        v6port = 30021
+        v6port = 21
 
     ipv4IPstr = ""
     ipv6IPstr = ""
@@ -391,8 +392,7 @@ def getTips():
                 ipv4IPstr += "\n[IPV4   公网] " + fullLink
 
     ipList = ipv4List + ipv6List
-    ipInfo = "若用户名空白则默认匿名访问(anonymous)，若密码空白则使用用户名作为密码。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。服务正常开启才会保存设置。以下为本机所有IP地址，右键可复制。\n"
-    return ipInfo + ipv4IPstr + ipv6IPstr
+    return tipsTitle + ipv4IPstr + ipv6IPstr
 
 
 def main():
@@ -409,8 +409,8 @@ def main():
     global ipv4Port
     global ipv6Port
     global ipList
-    global ipText
-    global menu
+    global tipsTextForm
+    global tipsTextFormRightClickMenu
 
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
@@ -442,7 +442,8 @@ def main():
     winHeight = 500
     window.geometry(str(scale(winWidht)) + "x" + str(scale(winHeight)))
 
-    ttk.Button(window, text="开启", command=startServer).place(
+    startButton = ttk.Button(window, text="开启", command=startServer)
+    startButton.place(
         x=scale(10), y=scale(10), width=scale(60), height=scale(25)
     )
     ttk.Button(window, text="停止", command=closeServer).place(
@@ -494,7 +495,7 @@ def main():
     ttk.Entry(window, textvariable=ipv6Port, width=scale(8)).place(
         x=scale(240), y=scale(70), width=scale(60), height=scale(25)
     )
-    ipv6Port.set("30021")
+    ipv6Port.set("21")
 
     isGBK_Encoding = tkinter.BooleanVar()
     ttk.Radiobutton(
@@ -512,27 +513,26 @@ def main():
         x=scale(420), y=scale(70), width=scale(100), height=scale(25)
     )
 
-    ipInfo = getTips()
-    ipText = scrolledtext.ScrolledText(
+    tipsTextForm = scrolledtext.ScrolledText(
         window, bg="#dddddd", wrap=tkinter.CHAR
     )
-    ipText.insert(tkinter.INSERT, ipInfo)
-    ipText.configure(state="disable")
-    ipText.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
+    tipsTextForm.insert(tkinter.INSERT, getTipsAnd_IP_Info())
+    tipsTextForm.configure(state="disable")
+    tipsTextForm.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     myConsole = scrolledtext.ScrolledText(
         window, bg="#dddddd", wrap=tkinter.CHAR
     )
     myConsole.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
 
-    menu = tkinter.Menu(window, tearoff=False)
+    tipsTextFormRightClickMenu = tkinter.Menu(window, tearoff=False)
     for ip in ipList:
-        menu.add_command(label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip))
+        tipsTextFormRightClickMenu.add_command(label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip))
 
     def popup(event):
-        menu.post(event.x_root, event.y_root)  # post在指定的位置显示弹出菜单
+        tipsTextFormRightClickMenu.post(event.x_root, event.y_root)  # post在指定的位置显示弹出菜单
 
-    ipText.bind("<Button-3>", popup)  # 绑定鼠标右键,执行popup函数
+    tipsTextForm.bind("<Button-3>", popup)  # 绑定鼠标右键,执行popup函数
 
     # 设置程序缩放
     window.tk.call("tk", "scaling", ScaleFactor / 75)
@@ -557,6 +557,11 @@ def main():
     isReadOnly.set(True if settingParameters["isReadOnly"] == "1" else False)
     
     threading.Thread(target=strayIcon.run, daemon=True).start()
+
+    if settingParameters["isAutoStartServer"] == "1":
+        startButton.invoke()
+        window.withdraw()
+
     window.mainloop()  # 显示窗体
 
 
