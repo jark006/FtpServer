@@ -1,4 +1,4 @@
-import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, json, pystray
+import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, pystray
 
 import tkinter
 from tkinter import ttk, scrolledtext, filedialog
@@ -7,6 +7,7 @@ from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 
+import Settings
 from PIL import ImageTk, Image
 from io import BytesIO
 
@@ -29,7 +30,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.11"
+appVersion = "v1.12"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
@@ -41,67 +42,67 @@ logThreadrunning = True
 permReadOnly = "elr"
 permReadWrite = "elradfmwMT"
 
-isSupportdIPV6 = False
-isFTP_V4Running = False
-isFTP_V6Running = False
+isSupportdIPv6 = False
+isIPv4ThreadRunning = False
+isIPv6ThreadRunning = False
 
-settingParameters: dict[str, str] = {
-    "rootDirectory": "",
-    "userName": "JARK006",
-    "userPassword": "123456",
-    "ipv4Port": "21",
-    "ipv6Port": "21",
-    "isGBK": "1",
-    "isReadOnly": "1",
-    "isAutoStartServer": "0",
-}
+settings = Settings.Settings()
 
 
-def loadSettingParameters(filename="FtpServer.json"):
-    global settingParameters
-
-    file_path = os.path.join(os.path.dirname(sys.argv[0]), filename)
-
-    if not os.path.exists(file_path):
-        settingParameters["rootDirectory"] = os.path.dirname(sys.argv[0])
-        return
-
-    try:
-        with open(file_path, "r") as file:
-            variables = json.load(file)
-            for key, value in variables.items():
-                if key in settingParameters:
-                    settingParameters[key] = value
-    except:
-        return
-
-
-def updateSettingParameters():
-    global settingParameters
-    global rootDirectoryVar
+def updateSettingVars():
+    global settings
+    global directoryCombobox
     global userNameVar
     global userPasswordVar
-    global ipv4PortVar
-    global ipv6PortVar
+    global IPv4PortVar
+    global IPv6PortVar
     global isReadOnlyVar
-    global isGBK_EncodingVar
+    global isGBKVar
     global isAutoStartServerVar
 
-    settingParameters["rootDirectory"] = rootDirectoryVar.get()
-    settingParameters["userName"] = userNameVar.get()
-    settingParameters["userPassword"] = userPasswordVar.get()
-    settingParameters["ipv4Port"] = ipv4PortVar.get()
-    settingParameters["ipv6Port"] = ipv6PortVar.get()
-    settingParameters["isGBK"] = "1" if isGBK_EncodingVar.get() else "0"
-    settingParameters["isReadOnly"] = "1" if isReadOnlyVar.get() else "0"
-    settingParameters["isAutoStartServer"] = "1" if isAutoStartServerVar.get() else "0"
+    settings.directoryList = list(directoryCombobox["value"])
+    if len(settings.directoryList) > 0:
+        directory = directoryCombobox.get()
+        if directory in settings.directoryList:
+            settings.directoryList.remove(directory)
+            settings.directoryList.insert(0, directory)
+    else:
+        settings.directoryList = [settings.appDirectory]
 
+    directoryCombobox["value"] = tuple(settings.directoryList)
+    directoryCombobox.current(0)
 
-def saveSettingParameters(filename="FtpServer.json"):
-    global settingParameters
+    settings.userName = userNameVar.get()
+    settings.userPassword = userPasswordVar.get()
+    settings.isGBK = isGBKVar.get()
+    settings.isReadOnly = isReadOnlyVar.get()
+    settings.isAutoStartServer = isAutoStartServerVar.get()
 
-    with open(os.path.join(os.path.dirname(sys.argv[0]), filename), "w") as file:
-        json.dump(settingParameters, file)
+    try:
+        IPv4PortInt = int(IPv4PortVar.get())
+        if 0 < IPv4PortInt and IPv4PortInt < 65536:
+            settings.IPv4Port = IPv4PortInt
+        else:
+            raise
+    except:
+        print(
+            f"\n\n!!! 当前 IPv4 设置端口：{IPv4PortVar.get()} 错误，正常范围: 1 ~ 65535，已重设为: 21\n\n"
+        )
+        settings.IPv4Port = 21
+        IPv4PortVar.set("21")
+
+    try:
+        IPv6PortInt = int(IPv6PortVar.get())
+        if 0 < IPv6PortInt and IPv6PortInt < 65536:
+            settings.IPv6Port = IPv6PortInt
+        else:
+            raise
+    except:
+        print(
+            f"\n\n!!! 当前 IPv6 设置端口：{IPv6PortVar.get()} 错误，正常范围: 1 ~ 65535，已重设为: 21\n\n"
+        )
+        settings.IPv6Port = 21
+        IPv6PortVar.set("21")
 
 
 class myStdout:  # 重定向输出
@@ -150,44 +151,38 @@ def is_internal_ip(ip_str):
 def startServer():
     global serverThreadV4
     global serverThreadV6
-    global isSupportdIPV6
-    global isFTP_V4Running
-    global isFTP_V6Running
+    global isSupportdIPv6
+    global isIPv4ThreadRunning
+    global isIPv6ThreadRunning
     global tipsTextWidget
     global tipsTextWidgetRightClickMenu
 
-    updateSettingParameters()
+    if isIPv4ThreadRunning:
+        print("[FTP IPv4]正在运行")
+        return
+    if isIPv6ThreadRunning:
+        print("[FTP IPv6]正在运行")
+        return
 
-    if not os.path.exists(settingParameters["rootDirectory"]):
+    updateSettingVars()
+
+    if not os.path.exists(settings.directoryList[0]):
         print(
-            f"路径: [ {settingParameters["rootDirectory"]} ]不存在！请检查路径是否正确或者有没有读取权限。"
+            f"路径: [ {settings.directoryList[0]} ]异常！请检查路径是否正确或者有没有读取权限。"
         )
         return
 
-    if (
-        len(settingParameters["userName"]) > 0
-        and len(settingParameters["userPassword"]) == 0
-    ):
+    if len(settings.userName) > 0 and len(settings.userPassword) == 0:
         print(f"\n\n!!! 请设置密码再启动服务 !!!")
         return
 
-    v4port = int(settingParameters["ipv4Port"])
-    if v4port <= 0 or v4port >= 65535:
-        print(f"\n\n!!! 当前IPV4 端口：{v4port} 错误，正常范围: 1 ~ 65535 !!!\n\n")
-        return
+    settings.save()
 
-    v6port = int(settingParameters["ipv6Port"])
-    if v6port <= 0 or v6port >= 65535:
-        print(f"\n\n!!! 当前IPV6 端口：{v6port} 错误，正常范围: 1 ~ 65535 !!!\n\n")
-        return
-
-    saveSettingParameters()
-
-    tipsSrt, ipList = getTipsAnd_IP_Info()
+    tipsStr, ipList = getTipsAnd_IP_Info()
 
     tipsTextWidget.configure(state="normal")
     tipsTextWidget.delete("0.0", tkinter.END)
-    tipsTextWidget.insert(tkinter.INSERT, tipsSrt)
+    tipsTextWidget.insert(tkinter.INSERT, tipsStr)
     tipsTextWidget.configure(state="disable")
 
     tipsTextWidgetRightClickMenu.delete(0, len(ipList))
@@ -197,93 +192,90 @@ def startServer():
         )
 
     try:
-        if isFTP_V4Running:
-            print("[FTP ipv4]正在运行")
-        else:
-            serverThreadV4 = threading.Thread(target=serverThreadFunV4)
-            serverThreadV4.start()
+        serverThreadV4 = threading.Thread(target=serverThreadFunV4)
+        serverThreadV4.start()
 
-        if isSupportdIPV6:
-            if isFTP_V6Running:
-                print("[FTP ipv6]正在运行")
-            else:
-                serverThreadV6 = threading.Thread(target=serverThreadFunV6)
-                serverThreadV6.start()
+        if isSupportdIPv6:
+            serverThreadV6 = threading.Thread(target=serverThreadFunV6)
+            serverThreadV6.start()
     except:
         print("Error: 无法启动线程")
 
     print(
-        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}\n".format(
+        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
             (
-                settingParameters["userName"]
-                if len(settingParameters["userName"]) > 0
+                settings.userName
+                if len(settings.userName) > 0
                 else "匿名访问(anonymous)"
             ),
-            settingParameters["userPassword"],
-            ("只读" if settingParameters["isReadOnly"] == "1" else "读写"),
-            ("GBK" if settingParameters["isGBK"] == "1" else "UTF-8"),
+            settings.userPassword,
+            ("只读" if settings.isReadOnly else "读写"),
+            ("GBK" if settings.isGBK else "UTF-8"),
+            settings.directoryList[0],
         )
     )
 
 
 def serverThreadFunV4():
     global serverV4
-    global isFTP_V4Running
+    global isIPv4ThreadRunning
 
-    print("[FTP ipv4]开启中...")
+    print("[FTP IPv4]开启中...")
     authorizer = DummyAuthorizer()
-    permStr = permReadOnly if settingParameters["isReadOnly"] == "1" else permReadWrite
 
-    if len(settingParameters["userName"]) > 0:
+    if len(settings.userName) > 0:
         authorizer.add_user(
-            settingParameters["userName"],
-            settingParameters["userPassword"],
-            rootDirectoryVar.get(),
-            perm=permStr,
+            settings.userName,
+            settings.userPassword,
+            settings.directoryList[0],
+            perm=permReadOnly if settings.isReadOnly else permReadWrite,
         )
     else:
-        authorizer.add_anonymous(rootDirectoryVar.get(), perm=permStr)
+        authorizer.add_anonymous(
+            settings.directoryList[0],
+            perm=permReadOnly if settings.isReadOnly else permReadWrite,
+        )
 
     handler = FTPHandler
     handler.authorizer = authorizer
-    handler.encoding = "gbk" if settingParameters["isGBK"] == "1" else "utf8"
-    serverV4 = ThreadedFTPServer(
-        ("0.0.0.0", int(settingParameters["ipv4Port"])), handler
-    )
-    print("[FTP ipv4]开始运行")
-    isFTP_V4Running = True
+    handler.encoding = "gbk" if settings.isGBK else "utf8"
+    serverV4 = ThreadedFTPServer(("0.0.0.0", settings.IPv4Port), handler)
+    print("[FTP IPv4]开始运行")
+    isIPv4ThreadRunning = True
     serverV4.serve_forever()
-    isFTP_V4Running = False
-    print("已停止[FTP ipv4]")
+    isIPv4ThreadRunning = False
+    print("已停止[FTP IPv4]")
 
 
 def serverThreadFunV6():
     global serverV6
-    global isFTP_V6Running
+    global isIPv6ThreadRunning
 
-    print("[FTP ipv6]开启中...")
+    print("[FTP IPv6]开启中...")
     authorizer = DummyAuthorizer()
-    permStr = permReadOnly if settingParameters["isReadOnly"] == "1" else permReadWrite
 
-    if len(settingParameters["userName"]) > 0:
+    if len(settings.userName) > 0:
         authorizer.add_user(
-            settingParameters["userName"],
-            settingParameters["userPassword"],
-            rootDirectoryVar.get(),
-            perm=permStr,
+            settings.userName,
+            settings.userPassword,
+            settings.directoryList[0],
+            perm=permReadOnly if settings.isReadOnly else permReadWrite,
         )
     else:
-        authorizer.add_anonymous(rootDirectoryVar.get(), perm=permStr)
+        authorizer.add_anonymous(
+            settings.directoryList[0],
+            perm=permReadOnly if settings.isReadOnly else permReadWrite,
+        )
 
     handler = FTPHandler
     handler.authorizer = authorizer
-    handler.encoding = "gbk" if settingParameters["isGBK"] == "1" else "utf8"
-    serverV6 = ThreadedFTPServer(("::", int(settingParameters["ipv6Port"])), handler)
-    print("[FTP ipv6]开始运行")
-    isFTP_V6Running = True
+    handler.encoding = "gbk" if settings.isGBK else "utf8"
+    serverV6 = ThreadedFTPServer(("::", settings.IPv6Port), handler)
+    print("[FTP IPv6]开始运行")
+    isIPv6ThreadRunning = True
     serverV6.serve_forever()
-    isFTP_V6Running = False
-    print("已停止[FTP ipv6]")
+    isIPv6ThreadRunning = False
+    print("已停止[FTP IPv6]")
 
 
 def closeServer():
@@ -291,38 +283,49 @@ def closeServer():
     global serverV6
     global serverThreadV4
     global serverThreadV6
-    global isFTP_V4Running
-    global isFTP_V6Running
-    global isSupportdIPV6
+    global isIPv4ThreadRunning
+    global isIPv6ThreadRunning
+    global isSupportdIPv6
 
-    if isFTP_V4Running:
-        print("[FTP ipv4]正在停止...")
+    if isIPv4ThreadRunning:
+        print("[FTP IPv4]正在停止...")
         serverV4.close_all()
         serverThreadV4.join()
-        print("[FTP ipv4]服务线程已退出\n")
+        print("[FTP IPv4]服务线程已退出\n")
     else:
-        print("当前没有[FTP ipv4]服务")
+        print("当前没有[FTP IPv4]服务")
 
-    if isSupportdIPV6:
-        if isFTP_V6Running:
-            print("[FTP ipv6]正在停止...")
+    if isSupportdIPv6:
+        if isIPv6ThreadRunning:
+            print("[FTP IPv6]正在停止...")
             serverV6.close_all()
             serverThreadV6.join()
-            print("[FTP ipv6]服务线程已退出\n")
+            print("[FTP IPv6]服务线程已退出\n")
         else:
-            print("当前没有[FTP ipv6]服务")
+            print("当前没有[FTP IPv6]服务")
 
 
-def pickRootDir():
-    global rootDirectoryVar
-    dir = filedialog.askdirectory()
-    if len(dir) == 0:
+def pickDirectory():
+    global directoryCombobox
+    global settings
+
+    directory = filedialog.askdirectory()
+    if len(directory) == 0:
         return
 
-    if os.path.exists(dir):
-        rootDirectoryVar.set(dir)
+    if os.path.exists(directory):
+        if directory in settings.directoryList:
+            settings.directoryList.remove(directory)
+            settings.directoryList.insert(0, directory)
+        else:
+            settings.directoryList.insert(0, directory)
+            while len(settings.directoryList) > 20:
+                settings.directoryList.pop()
+
+        directoryCombobox["value"] = tuple(settings.directoryList)
+        directoryCombobox.current(0)
     else:
-        print(f"路径不存在或无访问权限：{dir}")
+        print(f"路径不存在或无访问权限：{directory}")
 
 
 def openGithub():
@@ -349,8 +352,8 @@ def handleExit(icon: pystray._base.Icon):
     logThreadrunning = False
     logThread.join()
 
-    updateSettingParameters()
-    saveSettingParameters()
+    updateSettingVars()
+    settings.save()
 
     closeServer()
     window.destroy()
@@ -380,49 +383,54 @@ def logThreadFun():
 
 
 def getTipsAnd_IP_Info():
-    global isSupportdIPV6
+    global isSupportdIPv6
     global tipsTitle
 
     addrs = socket.getaddrinfo(socket.gethostname(), None)
 
-    ipv4IPstr = ""
-    ipv6IPstr = ""
-    ipv4List = []
-    ipv6List = []
+    IPv4IPstr = ""
+    IPv6IPstr = ""
+    IPv4List = []
+    IPv6List = []
     for item in addrs:
         ipStr = item[4][0]
-        if ":" in ipStr:  # IPV6
-            isSupportdIPV6 = True
-            v6port = int(settingParameters["ipv6Port"])
+        if ":" in ipStr:  # IPv6
+            isSupportdIPv6 = True
             fullLink = (
-                "ftp://[" + ipStr + "]" + ("" if v6port == 21 else (":" + str(v6port)))
+                "ftp://["
+                + ipStr
+                + "]"
+                + ("" if settings.IPv6Port == 21 else (":" + str(settings.IPv6Port)))
             )
-            ipv6List.append(fullLink)
+            IPv6List.append(fullLink)
             if ipStr[:4] == "fe80":
-                ipv6IPstr += "\n[IPV6 局域网] " + fullLink
+                IPv6IPstr += "\n[IPv6 局域网] " + fullLink
             elif ipStr[:4] == "240e":
-                ipv6IPstr += "\n[IPV6 电信公网] " + fullLink
+                IPv6IPstr += "\n[IPv6 电信公网] " + fullLink
             elif ipStr[:4] == "2408":
-                ipv6IPstr += "\n[IPV6 联通公网] " + fullLink
+                IPv6IPstr += "\n[IPv6 联通公网] " + fullLink
             elif ipStr[:4] == "2409":
-                ipv6IPstr += "\n[IPV6 移动/铁通网] " + fullLink
+                IPv6IPstr += "\n[IPv6 移动/铁通网] " + fullLink
             else:
-                ipv6IPstr += "\n[IPV6 公网] " + fullLink
-        else:  # IPV4
-            v4port = int(settingParameters["ipv4Port"])
-            fullLink = "ftp://" + ipStr + ("" if v4port == 21 else (":" + str(v4port)))
-            ipv4List.append(fullLink)
+                IPv6IPstr += "\n[IPv6 公网] " + fullLink
+        else:  # IPv4
+            fullLink = (
+                "ftp://"
+                + ipStr
+                + ("" if settings.IPv4Port == 21 else (":" + str(settings.IPv4Port)))
+            )
+            IPv4List.append(fullLink)
             if is_internal_ip(ipStr):
                 if ipStr[:3] == "10." or ipStr[:3] == "100":
-                    ipv4IPstr += "\n[IPV4 局域网] " + fullLink
+                    IPv4IPstr += "\n[IPv4 局域网] " + fullLink
                 else:
-                    ipv4IPstr += "\n[IPV4 局域网] " + fullLink
+                    IPv4IPstr += "\n[IPv4 局域网] " + fullLink
             else:
-                ipv4IPstr += "\n[IPV4 公网] " + fullLink
+                IPv4IPstr += "\n[IPv4 公网] " + fullLink
 
-    ipList = ipv4List + ipv6List
-    tipsSrt = tipsTitle + ipv4IPstr + ipv6IPstr
-    return tipsSrt, ipList
+    ipList = IPv4List + IPv6List
+    tipsStr = tipsTitle + IPv4IPstr + IPv6IPstr
+    return tipsStr, ipList
 
 
 def main():
@@ -432,32 +440,30 @@ def main():
     global logThread
     global tipsTextWidget
     global tipsTextWidgetRightClickMenu
+    global directoryCombobox
 
-    global rootDirectoryVar
     global userNameVar
     global userPasswordVar
-    global ipv4PortVar
-    global ipv6PortVar
+    global IPv4PortVar
+    global IPv6PortVar
     global isReadOnlyVar
-    global isGBK_EncodingVar
+    global isGBKVar
     global isAutoStartServerVar
 
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
     ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
-    # print("系统缩放比例为:", ScaleFactor)
 
     def scale(n: int) -> int:
         return int(n * ScaleFactor / 100)
 
-    loadSettingParameters()
-
     mystd = myStdout()  # 实例化重定向类
+
+    settings.load()
 
     strayMenu = (
         pystray.MenuItem("显示", show_window, default=True),
-        pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出", handleExit),
     )
     strayImage = Image.open(BytesIO(base64.b64decode(iconStr)))
@@ -484,12 +490,12 @@ def main():
         x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
-    ttk.Button(window, text="设置目录", command=pickRootDir).place(
+    ttk.Button(window, text="设置目录", command=pickDirectory).place(
         x=scale(150), y=scale(10), width=scale(70), height=scale(25)
     )
 
-    rootDirectoryVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=rootDirectoryVar, width=scale(36)).place(
+    directoryCombobox = ttk.Combobox(window, state="readonly")
+    directoryCombobox.place(
         x=scale(230), y=scale(10), width=scale(280), height=scale(25)
     )
 
@@ -513,29 +519,29 @@ def main():
         x=scale(60), y=scale(70), width=scale(100), height=scale(25)
     )
 
-    ttk.Label(window, text="IPV4端口").place(
+    ttk.Label(window, text="IPv4端口").place(
         x=scale(180), y=scale(40), width=scale(80), height=scale(25)
     )
-    ipv4PortVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=ipv4PortVar, width=scale(8)).place(
+    IPv4PortVar = tkinter.StringVar()
+    ttk.Entry(window, textvariable=IPv4PortVar, width=scale(8)).place(
         x=scale(240), y=scale(40), width=scale(60), height=scale(25)
     )
 
-    ttk.Label(window, text="IPV6端口").place(
+    ttk.Label(window, text="IPv6端口").place(
         x=scale(180), y=scale(70), width=scale(80), height=scale(25)
     )
-    ipv6PortVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=ipv6PortVar, width=scale(8)).place(
+    IPv6PortVar = tkinter.StringVar()
+    ttk.Entry(window, textvariable=IPv6PortVar, width=scale(8)).place(
         x=scale(240), y=scale(70), width=scale(60), height=scale(25)
     )
 
-    isGBK_EncodingVar = tkinter.BooleanVar()
-    ttk.Radiobutton(
-        window, text="UTF-8 编码", variable=isGBK_EncodingVar, value=False
-    ).place(x=scale(310), y=scale(40), width=scale(100), height=scale(25))
-    ttk.Radiobutton(
-        window, text="GBK 编码", variable=isGBK_EncodingVar, value=True
-    ).place(x=scale(310), y=scale(70), width=scale(100), height=scale(25))
+    isGBKVar = tkinter.BooleanVar()
+    ttk.Radiobutton(window, text="UTF-8 编码", variable=isGBKVar, value=False).place(
+        x=scale(310), y=scale(40), width=scale(100), height=scale(25)
+    )
+    ttk.Radiobutton(window, text="GBK 编码", variable=isGBKVar, value=True).place(
+        x=scale(310), y=scale(70), width=scale(100), height=scale(25)
+    )
 
     isReadOnlyVar = tkinter.BooleanVar()
     ttk.Radiobutton(window, text="读写", variable=isReadOnlyVar, value=False).place(
@@ -567,7 +573,7 @@ def main():
             label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip)
         )
 
-    def popup(event):
+    def popup(event: tkinter.Event):
         tipsTextWidgetRightClickMenu.post(
             event.x_root, event.y_root
         )  # post在指定的位置显示弹出菜单
@@ -580,36 +586,20 @@ def main():
     # 设置程序缩放
     window.tk.call("tk", "scaling", ScaleFactor / 75)
 
-    if os.path.exists(settingParameters["rootDirectory"]):
-        rootDirectoryVar.set(settingParameters["rootDirectory"])
-    else:
-        rootDirectoryVar.set(os.path.dirname(sys.argv[0]))
+    directoryCombobox["value"] = tuple(settings.directoryList)
+    directoryCombobox.current(0)
 
-    if len(settingParameters["userName"]) > 0:
-        userNameVar.set(settingParameters["userName"])
-    if len(settingParameters["userPassword"]) > 0:
-        userPasswordVar.set(settingParameters["userPassword"])
-
-    ipv4PortVar.set(
-        settingParameters["ipv4Port"]
-        if len(settingParameters["ipv4Port"]) > 0
-        else "21"
-    )
-    ipv6PortVar.set(
-        settingParameters["ipv6Port"]
-        if len(settingParameters["ipv6Port"]) > 0
-        else "21"
-    )
-
-    isGBK_EncodingVar.set(True if settingParameters["isGBK"] == "1" else False)
-    isReadOnlyVar.set(True if settingParameters["isReadOnly"] == "1" else False)
-    isAutoStartServerVar.set(
-        True if settingParameters["isAutoStartServer"] == "1" else False
-    )
+    userNameVar.set(settings.userName)
+    userPasswordVar.set(settings.userPassword)
+    IPv4PortVar.set(str(settings.IPv4Port))
+    IPv6PortVar.set(str(settings.IPv6Port))
+    isGBKVar.set(settings.isGBK)
+    isReadOnlyVar.set(settings.isReadOnly)
+    isAutoStartServerVar.set(settings.isAutoStartServer)
 
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
-    if settingParameters["isAutoStartServer"] == "1":
+    if settings.isAutoStartServer:
         startButton.invoke()
         window.withdraw()
 
