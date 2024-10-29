@@ -17,7 +17,7 @@ import win32con
 # pip install Pillow pypiwin32 pyinstaller nuitka pystray
 
 # 打包 单文件 隐藏终端窗口
-# pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico
+# pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt --manifest .\manifest.xml
 # nuitka --standalone --onefile --enable-plugin=tk-inter --windows-disable-console .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico
 """
 import base64
@@ -30,10 +30,10 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.12"
+appVersion = "v1.13"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
-windowsTitle = appLabel + " " + appVersion + " By " + appAuthor
+windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
 tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。以下为本机所有IP地址，右键可复制。\n"
 
 logMsg = queue.Queue()
@@ -134,11 +134,11 @@ def ip_into_int(ip_str):
 # https://blog.mimvp.com/article/32438.html
 def is_internal_ip(ip_str):
     ip_int = ip_into_int(ip_str)
-    net_A = ip_into_int("10.255.255.255") >> 24
-    net_B = ip_into_int("172.31.255.255") >> 20
-    net_C = ip_into_int("192.168.255.255") >> 16
-    net_ISP = ip_into_int("100.127.255.255") >> 22
-    net_DHCP = ip_into_int("169.254.255.255") >> 16
+    net_A = 10  # ip_into_int("10.255.255.255") >> 24
+    net_B = 2753  # ip_into_int("172.31.255.255") >> 20
+    net_C = 49320  # ip_into_int("192.168.255.255") >> 16
+    net_ISP = 43518  # ip_into_int("100.127.255.255") >> 22
+    net_DHCP = 401  # ip_into_int("169.254.255.255") >> 16
     return (
         ip_int >> 24 == net_A
         or ip_int >> 20 == net_B
@@ -178,17 +178,17 @@ def startServer():
 
     settings.save()
 
-    tipsStr, ipList = getTipsAnd_IP_Info()
+    tipsStr, ftpUrlList = getTipsAndUrlList()
 
     tipsTextWidget.configure(state="normal")
     tipsTextWidget.delete("0.0", tkinter.END)
     tipsTextWidget.insert(tkinter.INSERT, tipsStr)
     tipsTextWidget.configure(state="disable")
 
-    tipsTextWidgetRightClickMenu.delete(0, len(ipList))
-    for ip in ipList:
+    tipsTextWidgetRightClickMenu.delete(0, len(ftpUrlList))
+    for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
-            label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip)
+            label=f"复制 {url}", command=lambda url=url: set_clipboard(url)
         )
 
     try:
@@ -289,20 +289,16 @@ def closeServer():
 
     if isIPv4ThreadRunning:
         print("[FTP IPv4]正在停止...")
-        serverV4.close_all()
+        serverV4.close_all() # 注意：这也会关闭serverV6的所有连接
         serverThreadV4.join()
-        print("[FTP IPv4]服务线程已退出\n")
-    else:
-        print("当前没有[FTP IPv4]服务")
+    print("[FTP IPv4] 线程已停止")
 
     if isSupportdIPv6:
         if isIPv6ThreadRunning:
             print("[FTP IPv6]正在停止...")
             serverV6.close_all()
             serverThreadV6.join()
-            print("[FTP IPv6]服务线程已退出\n")
-        else:
-            print("当前没有[FTP IPv6]服务")
+        print("[FTP IPv6] 线程已停止")
 
 
 def pickDirectory():
@@ -382,7 +378,7 @@ def logThreadFun():
         loggingWidget.see(tkinter.END)
 
 
-def getTipsAnd_IP_Info():
+def getTipsAndUrlList():
     global isSupportdIPv6
     global tipsTitle
 
@@ -390,47 +386,39 @@ def getTipsAnd_IP_Info():
 
     IPv4IPstr = ""
     IPv6IPstr = ""
-    IPv4List = []
-    IPv6List = []
+    IPv4FtpUrlList = []
+    IPv6FtpUrlList = []
     for item in addrs:
         ipStr = item[4][0]
         if ":" in ipStr:  # IPv6
             isSupportdIPv6 = True
-            fullLink = (
-                "ftp://["
-                + ipStr
-                + "]"
-                + ("" if settings.IPv6Port == 21 else (":" + str(settings.IPv6Port)))
+            fullUrl = f"ftp://[{ipStr}]" + (
+                "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
             )
-            IPv6List.append(fullLink)
-            if ipStr[:4] == "fe80":
-                IPv6IPstr += "\n[IPv6 局域网] " + fullLink
+            IPv6FtpUrlList.append(fullUrl)
+            if ipStr[:4] == "fe80" or ipStr[:4] == "fd00":
+                IPv6IPstr += f"\n[IPv6 局域网] {fullUrl}"
             elif ipStr[:4] == "240e":
-                IPv6IPstr += "\n[IPv6 电信公网] " + fullLink
+                IPv6IPstr += f"\n[IPv6 电信公网] {fullUrl}"
             elif ipStr[:4] == "2408":
-                IPv6IPstr += "\n[IPv6 联通公网] " + fullLink
+                IPv6IPstr += f"\n[IPv6 联通公网] {fullUrl}"
             elif ipStr[:4] == "2409":
-                IPv6IPstr += "\n[IPv6 移动/铁通网] " + fullLink
+                IPv6IPstr += f"\n[IPv6 移动/铁通网] {fullUrl}"
             else:
-                IPv6IPstr += "\n[IPv6 公网] " + fullLink
+                IPv6IPstr += f"\n[IPv6 公网] {fullUrl}"
         else:  # IPv4
-            fullLink = (
-                "ftp://"
-                + ipStr
-                + ("" if settings.IPv4Port == 21 else (":" + str(settings.IPv4Port)))
+            fullUrl = f"ftp://{ipStr}" + (
+                "" if settings.IPv4Port == 21 else (f":{settings.IPv4Port}")
             )
-            IPv4List.append(fullLink)
+            IPv4FtpUrlList.append(fullUrl)
             if is_internal_ip(ipStr):
-                if ipStr[:3] == "10." or ipStr[:3] == "100":
-                    IPv4IPstr += "\n[IPv4 局域网] " + fullLink
-                else:
-                    IPv4IPstr += "\n[IPv4 局域网] " + fullLink
+                IPv4IPstr += f"\n[IPv4 局域网] {fullUrl}"
             else:
-                IPv4IPstr += "\n[IPv4 公网] " + fullLink
+                IPv4IPstr += f"\n[IPv4 公网] {fullUrl}"
 
-    ipList = IPv4List + IPv6List
+    ftpUrlList = IPv4FtpUrlList + IPv6FtpUrlList
     tipsStr = tipsTitle + IPv4IPstr + IPv6IPstr
-    return tipsStr, ipList
+    return tipsStr, ftpUrlList
 
 
 def main():
@@ -451,7 +439,8 @@ def main():
     global isAutoStartServerVar
 
     # 告诉操作系统使用程序自身的dpi适配
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    # 已使用 manifest.xml 设置DPI感知
+    # ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
     ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
 
@@ -482,7 +471,7 @@ def main():
 
     winWidht = 600
     winHeight = 500
-    window.geometry(str(scale(winWidht)) + "x" + str(scale(winHeight)))
+    window.geometry(f"{scale(winWidht)}x{scale(winHeight)}")
 
     startButton = ttk.Button(window, text="开启", command=startServer)
     startButton.place(x=scale(10), y=scale(10), width=scale(60), height=scale(25))
@@ -490,7 +479,7 @@ def main():
         x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
-    ttk.Button(window, text="设置目录", command=pickDirectory).place(
+    ttk.Button(window, text="选择目录", command=pickDirectory).place(
         x=scale(150), y=scale(10), width=scale(70), height=scale(25)
     )
 
@@ -560,7 +549,7 @@ def main():
         offvalue=False,
     ).place(x=scale(460), y=scale(40), width=scale(160), height=scale(50))
 
-    tipsStr, ipList = getTipsAnd_IP_Info()
+    tipsStr, ftpUrlList = getTipsAndUrlList()
 
     tipsTextWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
     tipsTextWidget.insert(tkinter.INSERT, tipsStr)
@@ -568,9 +557,9 @@ def main():
     tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     tipsTextWidgetRightClickMenu = tkinter.Menu(window, tearoff=False)
-    for ip in ipList:
+    for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
-            label="复制 " + ip, command=lambda ip=ip: set_clipboard(ip)
+            label=f"复制 {url}", command=lambda url=url: set_clipboard(url)
         )
 
     def popup(event: tkinter.Event):
