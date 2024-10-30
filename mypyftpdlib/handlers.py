@@ -1941,8 +1941,29 @@ class FTPHandler(AsyncChat):
          - (int) bytes:
             number of bytes transmitted.
         """
-        line = '%s %s completed=%s bytes=%s seconds=%s' % \
-            (cmd, filename, completed and 1 or 0, bytes, elapsed)
+        # line = '%s %s completed=%s bytes=%s seconds=%s' % \
+        #     (cmd, filename, completed and 1 or 0, bytes, elapsed)
+        def byte2Str(bytes:int):
+            if bytes < 1024:
+                return f"{bytes} Bytes"
+            elif bytes < 1024**2:
+                return f"{bytes/1024.0:.2f} KiB"
+            elif bytes < 1024**3:
+                return f"{bytes/(1024.0**2):.2f} MiB"
+            else:
+                return f"{bytes/(1024.0**3):.2f} GiB"
+
+        def elapsed2Str(elapsed:float):
+            if elapsed < 1e-3:
+                return f"{elapsed*1e6:.2f} 微秒"
+            elif elapsed < 1.0:
+                return f"{elapsed*1e3:.2f} 毫秒"
+            elif elapsed < 60.0:
+                return f"{elapsed:.2f} 秒"
+            else:
+                return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
+            
+        line = f"{cmd} {filename} {"完成" if completed else "失败"} {byte2Str(bytes)} {elapsed2Str(elapsed)}"
         self.log(line)
 
     # --- connection
@@ -2550,7 +2571,7 @@ class FTPHandler(AsyncChat):
                     self.close_when_done()
                 else:
                     self.respond("530 " + msg)
-                self.log("USER '%s' failed login." % username)
+                self.log(f"用户 [{username}] 登录失败")
             self.on_login_failed(username, password)
 
         self.del_channel()
@@ -2584,7 +2605,7 @@ class FTPHandler(AsyncChat):
         else:
             self.push("230-%s\r\n" % msg_login)
             self.respond("230 ")
-        self.log("USER '%s' logged in." % self.username)
+        self.log(f"用户 [{self.username}] 已登录")
         self.authenticated = True
         self.password = password
         self.attempted_logins = 0

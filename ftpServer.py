@@ -375,14 +375,18 @@ def logThreadFun():
         cnt += 1
         if cnt > 100:
             cnt = 0
+            loggingWidget.configure(state="normal")
             loggingWidget.delete(0.0, tkinter.END)
+            loggingWidget.configure(state="disable")
 
         logInfo = ""
         while not logMsg.empty():
             logInfo += logMsg.get()
 
+        loggingWidget.configure(state="normal")
         loggingWidget.insert("end", logInfo)
         loggingWidget.see(tkinter.END)
+        loggingWidget.configure(state="disable")
 
 
 def getTipsAndUrlList():
@@ -580,6 +584,7 @@ def main():
 
     loggingWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
+    loggingWidget.configure(state="disable")
 
     # 设置程序缩放
     window.tk.call("tk", "scaling", ScaleFactor / 75)
