@@ -1,23 +1,21 @@
 import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, pystray
 
+import Settings
+import win32clipboard
+import win32con
 import tkinter
-from tkinter import ttk, scrolledtext, filedialog
 
+from tkinter import ttk, scrolledtext, filedialog
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
-
-import Settings
 from PIL import ImageTk, Image
 from io import BytesIO
-
-import win32clipboard
-import win32con
 
 # pip install Pillow pypiwin32 pyinstaller nuitka pystray
 
 # 打包 单文件 隐藏终端窗口
-# pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt --manifest .\manifest.xml
+# pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
 # nuitka --standalone --onefile --enable-plugin=tk-inter --windows-disable-console .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico
 """
 import base64
@@ -37,14 +35,15 @@ windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
 tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。以下为本机所有IP地址，右键可复制。\n"
 
 logMsg = queue.Queue()
-logThreadrunning = True
+logThreadrunning: bool = True
 
-permReadOnly = "elr"
-permReadWrite = "elradfmwMT"
+permReadOnly: str = "elr"
+permReadWrite: str = "elradfmwMT"
 
-isSupportdIPv6 = False
-isIPv4ThreadRunning = False
-isIPv6ThreadRunning = False
+isIPv4Supported: bool = False
+isIPv6Supported: bool = False
+isIPv4ThreadRunning: bool = False
+isIPv6ThreadRunning: bool = False
 
 settings = Settings.Settings()
 
@@ -151,7 +150,8 @@ def is_internal_ip(ip_str):
 def startServer():
     global serverThreadV4
     global serverThreadV6
-    global isSupportdIPv6
+    global isIPv4Supported
+    global isIPv6Supported
     global isIPv4ThreadRunning
     global isIPv6ThreadRunning
     global tipsTextWidget
@@ -173,12 +173,16 @@ def startServer():
         return
 
     if len(settings.userName) > 0 and len(settings.userPassword) == 0:
-        print(f"\n\n!!! 请设置密码再启动服务 !!!")
+        print("\n\n!!! 请设置密码再启动服务 !!!")
+        return
+
+    tipsStr, ftpUrlList = getTipsAndUrlList()
+
+    if len(ftpUrlList) == 0:
+        print("\n\n!!! 本机没有检测到网络IP，请检查网络连接，或稍后重试 !!!")
         return
 
     settings.save()
-
-    tipsStr, ftpUrlList = getTipsAndUrlList()
 
     tipsTextWidget.configure(state="normal")
     tipsTextWidget.delete("0.0", tkinter.END)
@@ -192,14 +196,15 @@ def startServer():
         )
 
     try:
-        serverThreadV4 = threading.Thread(target=serverThreadFunV4)
-        serverThreadV4.start()
+        if isIPv4Supported:
+            serverThreadV4 = threading.Thread(target=serverThreadFunV4)
+            serverThreadV4.start()
 
-        if isSupportdIPv6:
+        if isIPv6Supported:
             serverThreadV6 = threading.Thread(target=serverThreadFunV6)
             serverThreadV6.start()
-    except:
-        print("Error: 无法启动线程")
+    except Exception as e:
+        print("!!! 发生异常，无法启动线程: ", e)
 
     print(
         "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
@@ -285,15 +290,17 @@ def closeServer():
     global serverThreadV6
     global isIPv4ThreadRunning
     global isIPv6ThreadRunning
-    global isSupportdIPv6
+    global isIPv4Supported
+    global isIPv6Supported
 
-    if isIPv4ThreadRunning:
-        print("[FTP IPv4]正在停止...")
-        serverV4.close_all() # 注意：这也会关闭serverV6的所有连接
-        serverThreadV4.join()
-    print("[FTP IPv4] 线程已停止")
+    if isIPv4Supported:
+        if isIPv4ThreadRunning:
+            print("[FTP IPv4]正在停止...")
+            serverV4.close_all()  # 注意：这也会关闭serverV6的所有连接
+            serverThreadV4.join()
+        print("[FTP IPv4] 线程已停止")
 
-    if isSupportdIPv6:
+    if isIPv6Supported:
         if isIPv6ThreadRunning:
             print("[FTP IPv6]正在停止...")
             serverV6.close_all()
@@ -359,7 +366,7 @@ def handleExit(icon: pystray._base.Icon):
 def logThreadFun():
     global logThreadrunning
     global loggingWidget
-    cnt = 0
+    cnt: int = 0
     while logThreadrunning:
         if logMsg.empty():
             time.sleep(0.1)
@@ -379,7 +386,8 @@ def logThreadFun():
 
 
 def getTipsAndUrlList():
-    global isSupportdIPv6
+    global isIPv4Supported
+    global isIPv6Supported
     global tipsTitle
 
     addrs = socket.getaddrinfo(socket.gethostname(), None)
@@ -391,7 +399,6 @@ def getTipsAndUrlList():
     for item in addrs:
         ipStr = item[4][0]
         if ":" in ipStr:  # IPv6
-            isSupportdIPv6 = True
             fullUrl = f"ftp://[{ipStr}]" + (
                 "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
             )
@@ -406,7 +413,7 @@ def getTipsAndUrlList():
                 IPv6IPstr += f"\n[IPv6 移动/铁通网] {fullUrl}"
             else:
                 IPv6IPstr += f"\n[IPv6 公网] {fullUrl}"
-        else:  # IPv4
+        elif "." in ipStr:  # IPv4
             fullUrl = f"ftp://{ipStr}" + (
                 "" if settings.IPv4Port == 21 else (f":{settings.IPv4Port}")
             )
@@ -415,6 +422,9 @@ def getTipsAndUrlList():
                 IPv4IPstr += f"\n[IPv4 局域网] {fullUrl}"
             else:
                 IPv4IPstr += f"\n[IPv4 公网] {fullUrl}"
+
+    isIPv4Supported = len(IPv4FtpUrlList) > 0
+    isIPv6Supported = len(IPv6FtpUrlList) > 0
 
     ftpUrlList = IPv4FtpUrlList + IPv6FtpUrlList
     tipsStr = tipsTitle + IPv4IPstr + IPv6IPstr
@@ -439,8 +449,7 @@ def main():
     global isAutoStartServerVar
 
     # 告诉操作系统使用程序自身的dpi适配
-    # 已使用 manifest.xml 设置DPI感知
-    # ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
     ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
 
