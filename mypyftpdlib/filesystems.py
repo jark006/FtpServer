@@ -9,31 +9,36 @@ import time
 
 
 try:
-    from stat import filemode as _filemode  # PY 3.3
-except ImportError:
-    from tarfile import filemode as _filemode
-try:
     import grp
     import pwd
 except ImportError:
     pwd = grp = None
 
-from ._compat import PY3
-from ._compat import u
-from ._compat import unicode
+
+__all__ = ['AbstractedFS', 'FilesystemError']
 
 
-__all__ = ['FilesystemError', 'AbstractedFS']
-
-
-_months_map = {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun',
-               7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct', 11: 'Nov', 12: 'Dec'}
+_months_map = {
+    1: 'Jan',
+    2: 'Feb',
+    3: 'Mar',
+    4: 'Apr',
+    5: 'May',
+    6: 'Jun',
+    7: 'Jul',
+    8: 'Aug',
+    9: 'Sep',
+    10: 'Oct',
+    11: 'Nov',
+    12: 'Dec',
+}
 
 
 def _memoize(fun):
     """A simple memoize decorator for functions supporting (hashable)
     positional arguments.
     """
+
     def wrapper(*args, **kwargs):
         key = (args, frozenset(sorted(kwargs.items())))
         try:
@@ -50,6 +55,7 @@ def _memoize(fun):
 # --- custom exceptions
 # ===================================================================
 
+
 class FilesystemError(Exception):
     """Custom class for filesystem-related exceptions.
     You can raise this from an AbstractedFS subclass in order to
@@ -60,6 +66,7 @@ class FilesystemError(Exception):
 # ===================================================================
 # --- base class
 # ===================================================================
+
 
 class AbstractedFS:
     """A class used to interact with the file system, providing a
@@ -80,21 +87,19 @@ class AbstractedFS:
     to the client.
     """
 
-    def __init__(self, root, cmd_channel, encoding):
+    def __init__(self, root, cmd_channel):
         """
-         - (str) root: the user "real" home directory (e.g. '/home/user')
-         - (instance) cmd_channel: the FTPHandler class instance.
+        - (str) root: the user "real" home directory (e.g. '/home/user')
+        - (instance) cmd_channel: the FTPHandler class instance.
         """
-        assert isinstance(root, unicode)
         # Set initial current working directory.
         # By default initial cwd is set to "/" to emulate a chroot jail.
         # If a different behavior is desired (e.g. initial cwd = root,
         # to reflect the real filesystem) users overriding this class
         # are responsible to set _cwd attribute as necessary.
-        self._cwd = u('/')
+        self._cwd = '/'
         self._root = root
         self.cmd_channel = cmd_channel
-        self.__encoding=encoding
 
     @property
     def root(self):
@@ -108,23 +113,23 @@ class AbstractedFS:
 
     @root.setter
     def root(self, path):
-        assert isinstance(path, unicode), path
         self._root = path
 
     @cwd.setter
     def cwd(self, path):
-        assert isinstance(path, unicode), path
         self._cwd = path
 
-    @property
-    def encoding(self):
-        return self.__encoding
-
-    @encoding.setter
-    def encoding(self,value):
-        self.__encoding=value
-
     # --- Pathname / conversion utilities
+
+    @staticmethod
+    def _isabs(path, _windows=os.name == "nt"):
+        # Windows + Python 3.13: isabs() changed so that a path
+        # starting with "/" is no longer considered absolute.
+        # https://github.com/python/cpython/issues/44626
+        # https://github.com/python/cpython/pull/113829/
+        if _windows and path.startswith("/"):
+            return True
+        return os.path.isabs(path)
 
     def ftpnorm(self, ftppath):
         """Normalize a "virtual" ftp pathname (typically the raw string
@@ -137,8 +142,7 @@ class AbstractedFS:
         Note: directory separators are system independent ("/").
         Pathname returned is always absolutized.
         """
-        assert isinstance(ftppath, unicode), ftppath
-        if os.path.isabs(ftppath):
+        if self._isabs(ftppath):
             p = os.path.normpath(ftppath)
         else:
             p = os.path.normpath(os.path.join(self.cwd, ftppath))
@@ -154,8 +158,8 @@ class AbstractedFS:
         # Anti path traversal: don't trust user input, in the event
         # that self.cwd is not absolute, return "/" as a safety measure.
         # This is for extra protection, maybe not really necessary.
-        if not os.path.isabs(p):
-            p = u("/")
+        if not self._isabs(p):
+            p = "/"
         return p
 
     def ftp2fs(self, ftppath):
@@ -169,7 +173,6 @@ class AbstractedFS:
 
         Note: directory separators are system dependent.
         """
-        assert isinstance(ftppath, unicode), ftppath
         # as far as I know, it should always be path traversal safe...
         if os.path.normpath(self.root) == os.sep:
             return os.path.normpath(self.ftpnorm(ftppath))
@@ -192,15 +195,14 @@ class AbstractedFS:
         On invalid pathnames escaping from user's root directory
         (e.g. "/home" when root is "/home/user") always return "/".
         """
-        assert isinstance(fspath, unicode), fspath
-        if os.path.isabs(fspath):
+        if self._isabs(fspath):
             p = os.path.normpath(fspath)
         else:
             p = os.path.normpath(os.path.join(self.root, fspath))
         if not self.validpath(p):
-            return u('/')
+            return '/'
         p = p.replace(os.sep, "/")
-        p = p[len(self.root):]
+        p = p[len(self.root) :]
         if not p.startswith('/'):
             p = '/' + p
         return p
@@ -215,22 +217,18 @@ class AbstractedFS:
         Pathnames escaping from user's root directory are considered
         not valid.
         """
-        assert isinstance(path, unicode), path
         root = self.realpath(self.root)
         path = self.realpath(path)
         if not root.endswith(os.sep):
-            root = root + os.sep
+            root += os.sep
         if not path.endswith(os.sep):
-            path = path + os.sep
-        if path[0:len(root)] == root:
-            return True
-        return False
+            path += os.sep
+        return path[0 : len(root)] == root
 
     # --- Wrapper methods around open() and tempfile.mkstemp
 
     def open(self, filename, mode):
         """Open a file returning its handler."""
-        assert isinstance(filename, unicode), filename
         return open(filename, mode)
 
     def mkstemp(self, suffix='', prefix='', dir=None, mode='wb'):
@@ -238,6 +236,7 @@ class AbstractedFS:
         name.  Unlike mkstemp it returns an object with a file-like
         interface.
         """
+
         class FileWrapper:
 
             def __init__(self, fd, name):
@@ -261,52 +260,41 @@ class AbstractedFS:
         it is vital that `cwd` attribute gets set.
         """
         # note: process cwd will be reset by the caller
-        assert isinstance(path, unicode), path
         os.chdir(path)
         self.cwd = self.fs2ftp(path)
 
     def mkdir(self, path):
         """Create the specified directory."""
-        assert isinstance(path, unicode), path
         os.mkdir(path)
 
     def listdir(self, path):
         """List the content of a directory."""
-        assert isinstance(path, unicode), path
         return os.listdir(path)
 
     def listdirinfo(self, path):
         """List the content of a directory."""
-        assert isinstance(path, unicode), path
         return os.listdir(path)
 
     def rmdir(self, path):
         """Remove the specified directory."""
-        assert isinstance(path, unicode), path
         os.rmdir(path)
 
     def remove(self, path):
         """Remove the specified file."""
-        assert isinstance(path, unicode), path
         os.remove(path)
 
     def rename(self, src, dst):
         """Rename the specified src file to the dst filename."""
-        assert isinstance(src, unicode), src
-        assert isinstance(dst, unicode), dst
         os.rename(src, dst)
 
     def chmod(self, path, mode):
         """Change file/directory mode."""
-        assert isinstance(path, unicode), path
         if not hasattr(os, 'chmod'):
             raise NotImplementedError
         os.chmod(path, mode)
 
     def stat(self, path):
         """Perform a stat() system call on the given path."""
-        # on python 2 we might also get bytes from os.lisdir()
-        # assert isinstance(path, unicode), path
         return os.stat(path)
 
     def utime(self, path, timeval):
@@ -316,48 +304,43 @@ class AbstractedFS:
         return os.utime(path, (timeval, timeval))
 
     if hasattr(os, 'lstat'):
+
         def lstat(self, path):
             """Like stat but does not follow symbolic links."""
-            # on python 2 we might also get bytes from os.lisdir()
-            # assert isinstance(path, unicode), path
             return os.lstat(path)
+
     else:
         lstat = stat
 
     if hasattr(os, 'readlink'):
+
         def readlink(self, path):
             """Return a string representing the path to which a
             symbolic link points.
             """
-            assert isinstance(path, unicode), path
             return os.readlink(path)
 
     # --- Wrapper methods around os.path.* calls
 
     def isfile(self, path):
         """Return True if path is a file."""
-        assert isinstance(path, unicode), path
         return os.path.isfile(path)
 
     def islink(self, path):
         """Return True if path is a symbolic link."""
-        assert isinstance(path, unicode), path
         return os.path.islink(path)
 
     def isdir(self, path):
         """Return True if path is a directory."""
-        assert isinstance(path, unicode), path
         return os.path.isdir(path)
 
     def getsize(self, path):
         """Return the size of the specified file in bytes."""
-        assert isinstance(path, unicode), path
         return os.path.getsize(path)
 
     def getmtime(self, path):
         """Return the last modified time as a number of seconds since
         the epoch."""
-        assert isinstance(path, unicode), path
         return os.path.getmtime(path)
 
     def realpath(self, path):
@@ -365,17 +348,16 @@ class AbstractedFS:
         symbolic links encountered in the path (if they are
         supported by the operating system).
         """
-        assert isinstance(path, unicode), path
         return os.path.realpath(path)
 
     def lexists(self, path):
         """Return True if path refers to an existing path, including
         a broken or circular symbolic link.
         """
-        assert isinstance(path, unicode), path
         return os.path.lexists(path)
 
     if pwd is not None:
+
         def get_user_by_uid(self, uid):
             """Return the username associated with user id.
             If this can't be determined return raw uid instead.
@@ -385,11 +367,14 @@ class AbstractedFS:
                 return pwd.getpwuid(uid).pw_name
             except KeyError:
                 return uid
+
     else:
+
         def get_user_by_uid(self, uid):
             return "owner"
 
     if grp is not None:
+
         def get_group_by_gid(self, gid):
             """Return the group name associated with group id.
             If this can't be determined return raw gid instead.
@@ -399,7 +384,9 @@ class AbstractedFS:
                 return grp.getgrgid(gid).gr_name
             except KeyError:
                 return gid
+
     else:
+
         def get_group_by_gid(self, gid):
             return "group"
 
@@ -426,6 +413,7 @@ class AbstractedFS:
         drwxrwxrwx   1 owner   group          0 Aug 31 18:50 e-books
         -rw-rw-rw-   1 owner   group        380 Sep 02  3:40 module.py
         """
+
         @_memoize
         def get_user_by_uid(uid):
             return self.get_user_by_uid(uid)
@@ -434,7 +422,6 @@ class AbstractedFS:
         def get_group_by_gid(gid):
             return self.get_group_by_gid(gid)
 
-        assert isinstance(basedir, unicode), basedir
         if self.cmd_channel.use_gmt_times:
             timefunc = time.gmtime
         else:
@@ -443,20 +430,7 @@ class AbstractedFS:
         readlink = getattr(self, 'readlink', None)
         now = time.time()
         for basename in listing:
-            if not PY3:
-                try:
-                    file = os.path.join(basedir, basename)
-                except UnicodeDecodeError:
-                    # (Python 2 only) might happen on filesystem not
-                    # supporting UTF8 meaning os.listdir() returned a list
-                    # of mixed bytes and unicode strings:
-                    # http://goo.gl/6DLHD
-                    # http://bugs.python.org/issue683592
-                    file = os.path.join(bytes(basedir), bytes(basename))
-                    if not isinstance(basename, unicode):
-                        basename = unicode(basename, self.__encoding, 'ignore')
-            else:
-                file = os.path.join(basedir, basename)
+            file = os.path.join(basedir, basename)
             try:
                 st = self.lstat(file)
             except (OSError, FilesystemError):
@@ -464,7 +438,7 @@ class AbstractedFS:
                     continue
                 raise
 
-            perms = _filemode(st.st_mode)  # permissions
+            perms = stat.filemode(st.st_mode)  # permissions
             nlinks = st.st_nlink  # number of links to inode
             if not nlinks:  # non-posix system, let's use a bogus value
                 nlinks = 1
@@ -477,15 +451,19 @@ class AbstractedFS:
             # https://github.com/giampaolo/pyftpdlib/issues/187
             fmtstr = '%d  %Y' if now - st.st_mtime > SIX_MONTHS else '%d %H:%M'
             try:
-                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
-                                      time.strftime(fmtstr, mtime))
+                mtimestr = "%s %s" % (  # noqa: UP031
+                    _months_map[mtime.tm_mon],
+                    time.strftime(fmtstr, mtime),
+                )
             except ValueError:
                 # It could be raised if last mtime happens to be too
                 # old (prior to year 1900) in which case we return
                 # the current time as last mtime.
                 mtime = timefunc()
-                mtimestr = "%s %s" % (_months_map[mtime.tm_mon],
-                                      time.strftime("%d %H:%M", mtime))
+                mtimestr = "%s %s" % (  # noqa: UP031
+                    _months_map[mtime.tm_mon],
+                    time.strftime("%d %H:%M", mtime),
+                )
 
             # same as stat.S_ISLNK(st.st_mode) but slighlty faster
             islink = (st.st_mode & 61440) == stat.S_IFLNK
@@ -500,8 +478,17 @@ class AbstractedFS:
 
             # formatting is matched with proftpd ls output
             line = "%s %3s %-8s %-8s %8s %s %s\r\n" % (
-                perms, nlinks, uname, gname, size, mtimestr, basename)
-            yield line.encode(self.__encoding, self.cmd_channel.unicode_errors)
+                perms,
+                nlinks,
+                uname,
+                gname,
+                size,
+                mtimestr,
+                basename,
+            )
+            yield line.encode(
+                self.cmd_channel.encoding, self.cmd_channel.unicode_errors
+            )
 
     def format_mlsx(self, basedir, listing, perms, facts, ignore_err=True):
         """Return an iterator object that yields the entries of a given
@@ -529,7 +516,6 @@ class AbstractedFS:
         type=dir;size=0;perm=el;modify=20071127230206;unique=801e33; ebooks
         type=file;size=211;perm=r;modify=20071103093626;unique=192; module.py
         """
-        assert isinstance(basedir, unicode), basedir
         if self.cmd_channel.use_gmt_times:
             timefunc = time.gmtime
         else:
@@ -551,20 +537,7 @@ class AbstractedFS:
         show_unique = 'unique' in facts
         for basename in listing:
             retfacts = {}
-            if not PY3:
-                try:
-                    file = os.path.join(basedir, basename)
-                except UnicodeDecodeError:
-                    # (Python 2 only) might happen on filesystem not
-                    # supporting UTF8 meaning os.listdir() returned a list
-                    # of mixed bytes and unicode strings:
-                    # http://goo.gl/6DLHD
-                    # http://bugs.python.org/issue683592
-                    file = os.path.join(bytes(basedir), bytes(basename))
-                    if not isinstance(basename, unicode):
-                        basename = unicode(basename, self.__encoding, 'ignore')
-            else:
-                file = os.path.join(basedir, basename)
+            file = os.path.join(basedir, basename)
             # in order to properly implement 'unique' fact (RFC-3659,
             # chapter 7.5.2) we are supposed to follow symlinks, hence
             # use os.stat() instead of os.lstat()
@@ -597,8 +570,9 @@ class AbstractedFS:
             # last modification time
             if show_modify:
                 try:
-                    retfacts['modify'] = time.strftime("%Y%m%d%H%M%S",
-                                                       timefunc(st.st_mtime))
+                    retfacts['modify'] = time.strftime(
+                        "%Y%m%d%H%M%S", timefunc(st.st_mtime)
+                    )
                 # it could be raised if last mtime happens to be too old
                 # (prior to year 1900)
                 except ValueError:
@@ -606,8 +580,9 @@ class AbstractedFS:
             if show_create:
                 # on Windows we can provide also the creation time
                 try:
-                    retfacts['create'] = time.strftime("%Y%m%d%H%M%S",
-                                                       timefunc(st.st_ctime))
+                    retfacts['create'] = time.strftime(
+                        "%Y%m%d%H%M%S", timefunc(st.st_ctime)
+                    )
                 except ValueError:
                     pass
             # UNIX only
@@ -627,13 +602,16 @@ class AbstractedFS:
             # platforms should use some platform-specific method (e.g.
             # on Windows NTFS filesystems MTF records could be used).
             if show_unique:
-                retfacts['unique'] = "%xg%x" % (st.st_dev, st.st_ino)
+                retfacts['unique'] = f"{st.st_dev:x}g{st.st_ino:x}"
 
             # facts can be in any order but we sort them by name
-            factstring = "".join(["%s=%s;" % (x, retfacts[x])
-                                  for x in sorted(retfacts.keys())])
-            line = "%s %s\r\n" % (factstring, basename)
-            yield line.encode(self.__encoding, self.cmd_channel.unicode_errors)
+            factstring = "".join(
+                [f"{x}={retfacts[x]};" for x in sorted(retfacts.keys())]
+            )
+            line = f"{factstring} {basename}\r\n"
+            yield line.encode(
+                self.cmd_channel.encoding, self.cmd_channel.unicode_errors
+            )
 
 
 # ===================================================================
@@ -641,7 +619,7 @@ class AbstractedFS:
 # ===================================================================
 
 if os.name == 'posix':
-    __all__.append('UnixFilesystem')
+    __all__ += ['UnixFilesystem']
 
     class UnixFilesystem(AbstractedFS):
         """Represents the real UNIX filesystem.

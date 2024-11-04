@@ -4,7 +4,7 @@
 
 """
 Logging support for pyftpdlib, inspired from Tornado's
-(http://www.tornadoweb.org/).
+(https://www.tornadoweb.org/).
 
 This is not supposed to be imported/used directly.
 Instead you should use logging.basicConfig before serve_forever().
@@ -20,9 +20,6 @@ try:
     import curses
 except ImportError:
     curses = None
-
-from ._compat import PY3
-from ._compat import unicode
 
 
 # default logger
@@ -58,6 +55,7 @@ class LogFormatter(logging.Formatter):
     * Timestamps on every log line.
     * Robust against str/bytes encoding problems.
     """
+
     PREFIX = PREFIX
 
     def __init__(self, *args, **kwargs):
@@ -70,36 +68,39 @@ class LogFormatter(logging.Formatter):
             # bytes, but only accept strings. In addition, we want to
             # output these strings with the logging module, which
             # works with unicode strings. The explicit calls to
-            # unicode() below are harmless in python2 but will do the
+            # str() below are harmless in python2 but will do the
             # right conversion in python 3.
-            fg_color = \
+            fg_color = (
                 curses.tigetstr("setaf") or curses.tigetstr("setf") or ""
-            if not PY3:
-                fg_color = unicode(fg_color, "ascii")
+            )
             self._colors = {
                 # blues
-                logging.DEBUG: unicode(curses.tparm(fg_color, 4), "ascii"),
+                logging.DEBUG: str(curses.tparm(fg_color, 4), "ascii"),
                 # green
-                logging.INFO: unicode(curses.tparm(fg_color, 2), "ascii"),
+                logging.INFO: str(curses.tparm(fg_color, 2), "ascii"),
                 # yellow
-                logging.WARNING: unicode(curses.tparm(fg_color, 3), "ascii"),
+                logging.WARNING: str(curses.tparm(fg_color, 3), "ascii"),
                 # red
-                logging.ERROR: unicode(curses.tparm(fg_color, 1), "ascii")
+                logging.ERROR: str(curses.tparm(fg_color, 1), "ascii"),
             }
-            self._normal = unicode(curses.tigetstr("sgr0"), "ascii")
+            self._normal = str(curses.tigetstr("sgr0"), "ascii")
 
     def format(self, record):
         try:
             record.message = record.getMessage()
         except Exception as err:
-            record.message = "Bad message (%r): %r" % (err, record.__dict__)
+            record.message = f"Bad message ({err!r}): {record.__dict__!r}"
 
-        record.asctime = time.strftime(TIME_FORMAT,
-                                       self.converter(record.created))
+        record.asctime = time.strftime(
+            TIME_FORMAT, self.converter(record.created)
+        )
         prefix = self.PREFIX % record.__dict__
         if self._coloured:
-            prefix = self._colors.get(record.levelno, self._normal) + \
-                prefix + self._normal
+            prefix = (
+                self._colors.get(record.levelno, self._normal)
+                + prefix
+                + self._normal
+            )
 
         # Encoding notes:  The logging module prefers to work with character
         # strings, but only enforces that log messages are instances of
@@ -118,7 +119,7 @@ class LogFormatter(logging.Formatter):
         # result are so useless (and tornado is fond of using utf8-encoded
         # byte strings wherever possible).
         try:
-            message = unicode(record.message)
+            message = str(record.message)
         except UnicodeDecodeError:
             message = repr(record.message)
 
@@ -133,19 +134,18 @@ class LogFormatter(logging.Formatter):
 def debug(s, inst=None):
     s = "[debug] " + s
     if inst is not None:
-        s += " (%r)" % inst
+        s += f" ({inst!r})"
     logger.debug(s)
 
 
 def is_logging_configured():
     if logging.getLogger('pyftpdlib').handlers:
         return True
-    if logging.root.handlers:
-        return True
-    return False
+    return bool(logging.root.handlers)
 
 
 # TODO: write tests
+
 
 def config_logging(level=LEVEL, prefix=PREFIX, other_loggers=None):
     # Speedup logging by preventing certain internal log record info to
@@ -153,18 +153,23 @@ def config_logging(level=LEVEL, prefix=PREFIX, other_loggers=None):
     # * https://docs.python.org/3/howto/logging.html#optimization
     # * https://docs.python.org/3/library/logging.html#logrecord-attributes
     # * https://stackoverflow.com/a/38924153/376587
-    key_names = set(re.findall(
-        r'(?<!%)%\(([^)]+)\)[-# +0-9.hlL]*[diouxXeEfFgGcrs]', prefix))
+    key_names = set(
+        re.findall(
+            r'(?<!%)%\(([^)]+)\)[-# +0-9.hlL]*[diouxXeEfFgGcrs]', prefix
+        )
+    )
     if "process" not in key_names:
         logging.logProcesses = False
     if "processName" not in key_names:
         logging.logMultiprocessing = False
     if "thread" not in key_names and "threadName" not in key_names:
         logging.logThreads = False
-    if "filename" not in key_names and \
-            "pathname" not in key_names and \
-            "lineno" not in key_names and \
-            "module" not in key_names:
+    if (
+        "filename" not in key_names
+        and "pathname" not in key_names
+        and "lineno" not in key_names
+        and "module" not in key_names
+    ):
         # biggest speedup as it avoids calling sys._getframe()
         logging._srcfile = None
 

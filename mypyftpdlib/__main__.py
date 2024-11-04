@@ -8,70 +8,110 @@ Start a stand alone anonymous FTP server from the command line as in:
 $ python3 -m pyftpdlib
 """
 
+import argparse
 import logging
-import optparse
 import os
 import sys
 
 from . import __ver__
-from ._compat import getcwdu
 from .authorizers import DummyAuthorizer
 from .handlers import FTPHandler
 from .log import config_logging
 from .servers import FTPServer
 
 
-class CustomizedOptionFormatter(optparse.IndentedHelpFormatter):
-    """Formats options shown in help in a prettier way."""
-
-    def format_option(self, option):
-        result = []
-        opts = self.option_strings[option]
-        result.append('  %s\n' % opts)
-        if option.help:
-            help_text = '     %s\n\n' % self.expand_default(option)
-            result.append(help_text)
-        return ''.join(result)
-
-
-def main():
+def main(args=None):
     """Start a stand alone anonymous FTP server."""
     usage = "python3 -m pyftpdlib [options]"
-    parser = optparse.OptionParser(usage=usage, description=main.__doc__,
-                                   formatter=CustomizedOptionFormatter())
-    parser.add_option('-i', '--interface', default=None, metavar="ADDRESS",
-                      help="specify the interface to run on (default all "
-                           "interfaces)")
-    parser.add_option('-p', '--port', type="int", default=2121, metavar="PORT",
-                      help="specify port number to run on (default 2121)")
-    parser.add_option('-w', '--write', action="store_true", default=False,
-                      help="grants write access for logged in user "
-                           "(default read-only)")
-    parser.add_option('-d', '--directory', default=getcwdu(), metavar="FOLDER",
-                      help="specify the directory to share (default current "
-                           "directory)")
-    parser.add_option('-n', '--nat-address', default=None, metavar="ADDRESS",
-                      help="the NAT address to use for passive connections")
-    parser.add_option('-r', '--range', default=None, metavar="FROM-TO",
-                      help="the range of TCP ports to use for passive "
-                           "connections (e.g. -r 8000-9000)")
-    parser.add_option('-D', '--debug', action='store_true',
-                      help="enable DEBUG logging level")
-    parser.add_option('-v', '--version', action='store_true',
-                      help="print pyftpdlib version and exit")
-    parser.add_option('-V', '--verbose', action='store_true',
-                      help="activate a more verbose logging")
-    parser.add_option('-u', '--username', type=str, default=None,
-                      help="specify username to login with (anonymous login "
-                           "will be disabled and password required "
-                           "if supplied)")
-    parser.add_option('-P', '--password', type=str, default=None,
-                      help="specify a password to login with (username "
-                           "required to be useful)")
+    parser = argparse.ArgumentParser(
+        usage=usage,
+        description=main.__doc__,
+    )
+    parser.add_argument(
+        '-i',
+        '--interface',
+        default=None,
+        metavar="ADDRESS",
+        help="specify the interface to run on (default all interfaces)",
+    )
+    parser.add_argument(
+        '-p',
+        '--port',
+        type=int,
+        default=2121,
+        metavar="PORT",
+        help="specify port number to run on (default 2121)",
+    )
+    parser.add_argument(
+        '-w',
+        '--write',
+        action="store_true",
+        default=False,
+        help="grants write access for logged in user (default read-only)",
+    )
+    parser.add_argument(
+        '-d',
+        '--directory',
+        default=os.getcwd(),
+        metavar="FOLDER",
+        help="specify the directory to share (default current directory)",
+    )
+    parser.add_argument(
+        '-n',
+        '--nat-address',
+        default=None,
+        metavar="ADDRESS",
+        help="the NAT address to use for passive connections",
+    )
+    parser.add_argument(
+        '-r',
+        '--range',
+        default=None,
+        metavar="FROM-TO",
+        help=(
+            "the range of TCP ports to use for passive "
+            "connections (e.g. -r 8000-9000)"
+        ),
+    )
+    parser.add_argument(
+        '-D', '--debug', action='store_true', help="enable DEBUG logging level"
+    )
+    parser.add_argument(
+        '-v',
+        '--version',
+        action='store_true',
+        help="print pyftpdlib version and exit",
+    )
+    parser.add_argument(
+        '-V',
+        '--verbose',
+        action='store_true',
+        help="activate a more verbose logging",
+    )
+    parser.add_argument(
+        '-u',
+        '--username',
+        type=str,
+        default=None,
+        help=(
+            "specify username to login with (anonymous login "
+            "will be disabled and password required "
+            "if supplied)"
+        ),
+    )
+    parser.add_argument(
+        '-P',
+        '--password',
+        type=str,
+        default=None,
+        help=(
+            "specify a password to login with (username required to be useful)"
+        ),
+    )
 
-    options, args = parser.parse_args()
+    options = parser.parse_args(args=args)
     if options.version:
-        sys.exit("pyftpdlib %s" % __ver__)
+        sys.exit(f"pyftpdlib {__ver__}")
     if options.debug:
         config_logging(level=logging.DEBUG)
 
@@ -96,11 +136,11 @@ def main():
     if options.username:
         if not options.password:
             parser.error(
-                "if username (-u) is supplied, password ('-P') is required")
-        authorizer.add_user(options.username,
-                            options.password,
-                            options.directory,
-                            perm=perm)
+                "if username (-u) is supplied, password ('-P') is required"
+            )
+        authorizer.add_user(
+            options.username, options.password, options.directory, perm=perm
+        )
     else:
         authorizer.add_anonymous(options.directory, perm=perm)
 
@@ -116,6 +156,8 @@ def main():
         ftpd.serve_forever(timeout=2 if os.name == 'nt' else None)
     finally:
         ftpd.close_all()
+    if args:  # only used in unit tests
+        return ftpd
 
 
 if __name__ == '__main__':

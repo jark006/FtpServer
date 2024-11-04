@@ -2,6 +2,7 @@
 # Use of this source code is governed by MIT license that can be
 # found in the LICENSE file.
 
+import asynchat
 import contextlib
 import errno
 import glob
@@ -12,7 +13,6 @@ import socket
 import sys
 import time
 import traceback
-import warnings
 from datetime import datetime
 
 
@@ -27,19 +27,7 @@ try:
 except ImportError:
     SSL = None
 
-try:
-    from collections import OrderedDict  # python >= 2.7
-except ImportError:
-    OrderedDict = dict
-
 from . import __ver__
-from ._compat import PY3
-from ._compat import b
-from ._compat import getcwdu
-from ._compat import super
-from ._compat import u
-from ._compat import unicode
-from ._compat import xrange
 from .authorizers import AuthenticationFailed
 from .authorizers import AuthorizerError
 from .authorizers import DummyAuthorizer
@@ -56,181 +44,289 @@ from .log import debug
 from .log import logger
 
 
-if sys.version_info[:2] >= (3, 12):
-    from . import _asynchat as asynchat
-else:
-    import asynchat
-
-
 CR_BYTE = ord('\r')
 
 
-def _import_sendfile():
-    # By default attempt to use os.sendfile introduced in Python 3.3:
-    # http://bugs.python.org/issue10882
-    # ...otherwise fallback on using third-party pysendfile module:
-    # https://github.com/giampaolo/pysendfile/
-    if os.name == 'posix':
-        try:
-            return os.sendfile  # py >= 3.3
-        except AttributeError:
-            try:
-                import sendfile as sf
-
-                # dirty hack to detect whether old 1.2.4 version is installed
-                if hasattr(sf, 'has_sf_hdtr'):
-                    raise ImportError
-                return sf.sendfile
-            except ImportError:
-                pass
-    return None
-
-
-sendfile = _import_sendfile()
-
 proto_cmds = {
     'ABOR': dict(
-        perm=None, auth=True, arg=False,
-        help='Syntax: ABOR (abort transfer).'),
+        perm=None, auth=True, arg=False, help='Syntax: ABOR (abort transfer).'
+    ),
     'ALLO': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: ALLO <SP> bytes (noop; allocate storage).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: ALLO <SP> bytes (noop; allocate storage).',
+    ),
     'APPE': dict(
-        perm='a', auth=True, arg=True,
-        help='Syntax: APPE <SP> file-name (append data to file).'),
+        perm='a',
+        auth=True,
+        arg=True,
+        help='Syntax: APPE <SP> file-name (append data to file).',
+    ),
     'CDUP': dict(
-        perm='e', auth=True, arg=False,
-        help='Syntax: CDUP (go to parent directory).'),
+        perm='e',
+        auth=True,
+        arg=False,
+        help='Syntax: CDUP (go to parent directory).',
+    ),
     'CWD': dict(
-        perm='e', auth=True, arg=None,
-        help='Syntax: CWD [<SP> dir-name] (change working directory).'),
+        perm='e',
+        auth=True,
+        arg=None,
+        help='Syntax: CWD [<SP> dir-name] (change working directory).',
+    ),
     'DELE': dict(
-        perm='d', auth=True, arg=True,
-        help='Syntax: DELE <SP> file-name (delete file).'),
+        perm='d',
+        auth=True,
+        arg=True,
+        help='Syntax: DELE <SP> file-name (delete file).',
+    ),
     'EPRT': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: EPRT <SP> |proto|ip|port| (extended active mode).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: EPRT <SP> |proto|ip|port| (extended active mode).',
+    ),
     'EPSV': dict(
-        perm=None, auth=True, arg=None,
-        help='Syntax: EPSV [<SP> proto/"ALL"] (extended passive mode).'),
+        perm=None,
+        auth=True,
+        arg=None,
+        help='Syntax: EPSV [<SP> proto/"ALL"] (extended passive mode).',
+    ),
     'FEAT': dict(
-        perm=None, auth=False, arg=False,
-        help='Syntax: FEAT (list all new features supported).'),
+        perm=None,
+        auth=False,
+        arg=False,
+        help='Syntax: FEAT (list all new features supported).',
+    ),
     'HELP': dict(
-        perm=None, auth=False, arg=None,
-        help='Syntax: HELP [<SP> cmd] (show help).'),
+        perm=None,
+        auth=False,
+        arg=None,
+        help='Syntax: HELP [<SP> cmd] (show help).',
+    ),
     'LIST': dict(
-        perm='l', auth=True, arg=None,
-        help='Syntax: LIST [<SP> path] (list files).'),
+        perm='l',
+        auth=True,
+        arg=None,
+        help='Syntax: LIST [<SP> path] (list files).',
+    ),
     'MDTM': dict(
-        perm='l', auth=True, arg=True,
-        help='Syntax: MDTM [<SP> path] (file last modification time).'),
+        perm='l',
+        auth=True,
+        arg=True,
+        help='Syntax: MDTM [<SP> path] (file last modification time).',
+    ),
     'MFMT': dict(
-        perm='T', auth=True, arg=True,
-        help='Syntax: MFMT <SP> timeval <SP> path (file update last '
-             'modification time).'),
+        perm='T',
+        auth=True,
+        arg=True,
+        help=(
+            'Syntax: MFMT <SP> timeval <SP> path (file update last '
+            'modification time).'
+        ),
+    ),
     'MLSD': dict(
-        perm='l', auth=True, arg=None,
-        help='Syntax: MLSD [<SP> path] (list directory).'),
+        perm='l',
+        auth=True,
+        arg=None,
+        help='Syntax: MLSD [<SP> path] (list directory).',
+    ),
     'MLST': dict(
-        perm='l', auth=True, arg=None,
-        help='Syntax: MLST [<SP> path] (show information about path).'),
+        perm='l',
+        auth=True,
+        arg=None,
+        help='Syntax: MLST [<SP> path] (show information about path).',
+    ),
     'MODE': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: MODE <SP> mode (noop; set data transfer mode).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: MODE <SP> mode (noop; set data transfer mode).',
+    ),
     'MKD': dict(
-        perm='m', auth=True, arg=True,
-        help='Syntax: MKD <SP> path (create directory).'),
+        perm='m',
+        auth=True,
+        arg=True,
+        help='Syntax: MKD <SP> path (create directory).',
+    ),
     'NLST': dict(
-        perm='l', auth=True, arg=None,
-        help='Syntax: NLST [<SP> path] (list path in a compact form).'),
+        perm='l',
+        auth=True,
+        arg=None,
+        help='Syntax: NLST [<SP> path] (list path in a compact form).',
+    ),
     'NOOP': dict(
-        perm=None, auth=False, arg=False,
-        help='Syntax: NOOP (just do nothing).'),
+        perm=None,
+        auth=False,
+        arg=False,
+        help='Syntax: NOOP (just do nothing).',
+    ),
     'OPTS': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: OPTS <SP> cmd [<SP> option] (set option for command).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: OPTS <SP> cmd [<SP> option] (set option for command).',
+    ),
     'PASS': dict(
-        perm=None, auth=False, arg=None,
-        help='Syntax: PASS [<SP> password] (set user password).'),
+        perm=None,
+        auth=False,
+        arg=None,
+        help='Syntax: PASS [<SP> password] (set user password).',
+    ),
     'PASV': dict(
-        perm=None, auth=True, arg=False,
-        help='Syntax: PASV (open passive data connection).'),
+        perm=None,
+        auth=True,
+        arg=False,
+        help='Syntax: PASV (open passive data connection).',
+    ),
     'PORT': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: PORT <sp> h,h,h,h,p,p (open active data connection).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: PORT <sp> h,h,h,h,p,p (open active data connection).',
+    ),
     'PWD': dict(
-        perm=None, auth=True, arg=False,
-        help='Syntax: PWD (get current working directory).'),
+        perm=None,
+        auth=True,
+        arg=False,
+        help='Syntax: PWD (get current working directory).',
+    ),
     'QUIT': dict(
-        perm=None, auth=False, arg=False,
-        help='Syntax: QUIT (quit current session).'),
+        perm=None,
+        auth=False,
+        arg=False,
+        help='Syntax: QUIT (quit current session).',
+    ),
     'REIN': dict(
-        perm=None, auth=True, arg=False,
-        help='Syntax: REIN (flush account).'),
+        perm=None, auth=True, arg=False, help='Syntax: REIN (flush account).'
+    ),
     'REST': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: REST <SP> offset (set file offset).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: REST <SP> offset (set file offset).',
+    ),
     'RETR': dict(
-        perm='r', auth=True, arg=True,
-        help='Syntax: RETR <SP> file-name (retrieve a file).'),
+        perm='r',
+        auth=True,
+        arg=True,
+        help='Syntax: RETR <SP> file-name (retrieve a file).',
+    ),
     'RMD': dict(
-        perm='d', auth=True, arg=True,
-        help='Syntax: RMD <SP> dir-name (remove directory).'),
+        perm='d',
+        auth=True,
+        arg=True,
+        help='Syntax: RMD <SP> dir-name (remove directory).',
+    ),
     'RNFR': dict(
-        perm='f', auth=True, arg=True,
-        help='Syntax: RNFR <SP> file-name (rename (source name)).'),
+        perm='f',
+        auth=True,
+        arg=True,
+        help='Syntax: RNFR <SP> file-name (rename (source name)).',
+    ),
     'RNTO': dict(
-        perm='f', auth=True, arg=True,
-        help='Syntax: RNTO <SP> file-name (rename (destination name)).'),
+        perm='f',
+        auth=True,
+        arg=True,
+        help='Syntax: RNTO <SP> file-name (rename (destination name)).',
+    ),
     'SITE': dict(
-        perm=None, auth=False, arg=True,
-        help='Syntax: SITE <SP> site-command (execute SITE command).'),
+        perm=None,
+        auth=False,
+        arg=True,
+        help='Syntax: SITE <SP> site-command (execute SITE command).',
+    ),
     'SITE HELP': dict(
-        perm=None, auth=False, arg=None,
-        help='Syntax: SITE HELP [<SP> cmd] (show SITE command help).'),
+        perm=None,
+        auth=False,
+        arg=None,
+        help='Syntax: SITE HELP [<SP> cmd] (show SITE command help).',
+    ),
     'SITE CHMOD': dict(
-        perm='M', auth=True, arg=True,
-        help='Syntax: SITE CHMOD <SP> mode path (change file mode).'),
+        perm='M',
+        auth=True,
+        arg=True,
+        help='Syntax: SITE CHMOD <SP> mode path (change file mode).',
+    ),
     'SIZE': dict(
-        perm='l', auth=True, arg=True,
-        help='Syntax: SIZE <SP> file-name (get file size).'),
+        perm='l',
+        auth=True,
+        arg=True,
+        help='Syntax: SIZE <SP> file-name (get file size).',
+    ),
     'STAT': dict(
-        perm='l', auth=False, arg=None,
-        help='Syntax: STAT [<SP> path name] (server stats [list files]).'),
+        perm='l',
+        auth=False,
+        arg=None,
+        help='Syntax: STAT [<SP> path name] (server stats [list files]).',
+    ),
     'STOR': dict(
-        perm='w', auth=True, arg=True,
-        help='Syntax: STOR <SP> file-name (store a file).'),
+        perm='w',
+        auth=True,
+        arg=True,
+        help='Syntax: STOR <SP> file-name (store a file).',
+    ),
     'STOU': dict(
-        perm='w', auth=True, arg=None,
-        help='Syntax: STOU [<SP> name] (store a file with a unique name).'),
+        perm='w',
+        auth=True,
+        arg=None,
+        help='Syntax: STOU [<SP> name] (store a file with a unique name).',
+    ),
     'STRU': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: STRU <SP> type (noop; set file structure).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: STRU <SP> type (noop; set file structure).',
+    ),
     'SYST': dict(
-        perm=None, auth=False, arg=False,
-        help='Syntax: SYST (get operating system type).'),
+        perm=None,
+        auth=False,
+        arg=False,
+        help='Syntax: SYST (get operating system type).',
+    ),
     'TYPE': dict(
-        perm=None, auth=True, arg=True,
-        help='Syntax: TYPE <SP> [A | I] (set transfer type).'),
+        perm=None,
+        auth=True,
+        arg=True,
+        help='Syntax: TYPE <SP> [A | I] (set transfer type).',
+    ),
     'USER': dict(
-        perm=None, auth=False, arg=True,
-        help='Syntax: USER <SP> user-name (set username).'),
+        perm=None,
+        auth=False,
+        arg=True,
+        help='Syntax: USER <SP> user-name (set username).',
+    ),
     'XCUP': dict(
-        perm='e', auth=True, arg=False,
-        help='Syntax: XCUP (obsolete; go to parent directory).'),
+        perm='e',
+        auth=True,
+        arg=False,
+        help='Syntax: XCUP (obsolete; go to parent directory).',
+    ),
     'XCWD': dict(
-        perm='e', auth=True, arg=None,
-        help='Syntax: XCWD [<SP> dir-name] (obsolete; change directory).'),
+        perm='e',
+        auth=True,
+        arg=None,
+        help='Syntax: XCWD [<SP> dir-name] (obsolete; change directory).',
+    ),
     'XMKD': dict(
-        perm='m', auth=True, arg=True,
-        help='Syntax: XMKD <SP> dir-name (obsolete; create directory).'),
+        perm='m',
+        auth=True,
+        arg=True,
+        help='Syntax: XMKD <SP> dir-name (obsolete; create directory).',
+    ),
     'XPWD': dict(
-        perm=None, auth=True, arg=False,
-        help='Syntax: XPWD (obsolete; get current dir).'),
+        perm=None,
+        auth=True,
+        arg=False,
+        help='Syntax: XPWD (obsolete; get current dir).',
+    ),
     'XRMD': dict(
-        perm='d', auth=True, arg=True,
-        help='Syntax: XRMD <SP> dir-name (obsolete; remove directory).'),
+        perm='d',
+        auth=True,
+        arg=True,
+        help='Syntax: XRMD <SP> dir-name (obsolete; remove directory).',
+    ),
 }
 
 if not hasattr(os, 'chmod'):
@@ -259,13 +355,13 @@ def _support_hybrid_ipv6():
     on this platform.
     """
     # Note: IPPROTO_IPV6 constant is broken on Windows, see:
-    # http://bugs.python.org/issue6926
+    # https://bugs.python.org/issue6926
     try:
         if not socket.has_ipv6:
             return False
         with contextlib.closing(socket.socket(socket.AF_INET6)) as sock:
             return not sock.getsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY)
-    except (socket.error, AttributeError):
+    except (OSError, AttributeError):
         return False
 
 
@@ -284,6 +380,7 @@ class _GiveUpOnSendfile(Exception):
 
 # --- DTP classes
 
+
 class PassiveDTP(Acceptor):
     """Creates a socket listening on a local port, dispatching the
     resultant connection to DTPHandler. Used for handling PASV command.
@@ -295,14 +392,15 @@ class PassiveDTP(Acceptor):
        to listen(). If a connection request arrives when the queue is
        full the client may raise ECONNRESET. Defaults to 5.
     """
+
     timeout = 30
     backlog = None
 
     def __init__(self, cmd_channel, extmode=False):
         """Initialize the passive data server.
 
-         - (instance) cmd_channel: the command channel class instance.
-         - (bool) extmode: whether use extended passive mode response type.
+        - (instance) cmd_channel: the command channel class instance.
+        - (bool) extmode: whether use extended passive mode response type.
         """
         self.cmd_channel = cmd_channel
         self.log = cmd_channel.log
@@ -338,7 +436,12 @@ class PassiveDTP(Acceptor):
                 self.set_reuse_addr()
                 try:
                     self.bind((local_ip, port))
-                except socket.error as err:
+                except PermissionError:
+                    self.cmd_channel.log(
+                        f"ignoring EPERM when bind()ing port {port}",
+                        logfun=logger.debug,
+                    )
+                except OSError as err:
                     if err.errno == errno.EADDRINUSE:  # port already in use
                         if ports:
                             continue
@@ -353,7 +456,7 @@ class PassiveDTP(Acceptor):
                                 "Can't find a valid passive port in the "
                                 "configured range. A random kernel-assigned "
                                 "port will be used.",
-                                logfun=logger.warning
+                                logfun=logger.warning,
                             )
                     else:
                         raise
@@ -369,19 +472,23 @@ class PassiveDTP(Acceptor):
                 # the remote client is using IPv4 and its address is
                 # represented as an IPv4-mapped IPv6 address which
                 # looks like this ::ffff:151.12.5.65, see:
-                # http://en.wikipedia.org/wiki/IPv6#IPv4-mapped_addresses
-                # http://tools.ietf.org/html/rfc3493.html#section-3.7
+                # https://en.wikipedia.org/wiki/IPv6#IPv4-mapped_addresses
+                # https://datatracker.ietf.org/doc/html/rfc3493.html#section-3.7
                 # We truncate the first bytes to make it look like a
                 # common IPv4 address.
                 ip = ip[7:]
             # The format of 227 response in not standardized.
             # This is the most expected:
             resp = '227 Entering passive mode (%s,%d,%d).' % (
-                ip.replace('.', ','), port // 256, port % 256)
+                ip.replace('.', ','),
+                port // 256,
+                port % 256,
+            )
             self.cmd_channel.respond(resp)
         else:
-            self.cmd_channel.respond('229 Entering extended passive mode '
-                                     '(|||%d|).' % port)
+            self.cmd_channel.respond(
+                f'229 Entering extended passive mode (|||{int(port)}|).'
+            )
         if self.timeout:
             self.call_later(self.timeout, self.handle_timeout)
 
@@ -399,17 +506,21 @@ class PassiveDTP(Acceptor):
             if not self.cmd_channel.permit_foreign_addresses:
                 try:
                     sock.close()
-                except socket.error:
+                except OSError:
                     pass
-                msg = '425 Rejected data connection from foreign address ' \
-                    + '%s:%s.' % (addr[0], addr[1])
+                msg = (
+                    '425 Rejected data connection from foreign address '
+                    f'{addr[0]}:{addr[1]}.'
+                )
                 self.cmd_channel.respond_w_warning(msg)
                 # do not close listening socket: it couldn't be client's blame
                 return
             else:
                 # site-to-site FTP allowed
-                msg = 'Established data connection with foreign address ' \
-                    + '%s:%s.' % (addr[0], addr[1])
+                msg = (
+                    'Established data connection with foreign address '
+                    f'{addr[0]}:{addr[1]}.'
+                )
                 self.cmd_channel.log(msg, logfun=logger.warning)
         # Immediately close the current channel (we accept only one
         # connection at time) and avoid running out of max connections
@@ -424,14 +535,15 @@ class PassiveDTP(Acceptor):
 
     def handle_timeout(self):
         if self.cmd_channel.connected:
-            self.cmd_channel.respond("421 Passive data channel timed out.",
-                                     logfun=logger.info)
+            self.cmd_channel.respond(
+                "421 Passive data channel timed out.", logfun=logger.info
+            )
         self.close()
 
     def handle_error(self):
         """Called to handle any uncaught exceptions."""
         try:
-            raise
+            raise  # noqa: PLE0704
         except Exception:
             logger.error(traceback.format_exc())
         try:
@@ -451,6 +563,7 @@ class ActiveDTP(Connector):
      - (int) timeout: the timeout for us to establish connection with
        the client's listening data socket.
     """
+
     timeout = 30
 
     def __init__(self, ip, port, cmd_channel):
@@ -467,22 +580,22 @@ class ActiveDTP(Connector):
         self.log_exception = cmd_channel.log_exception
         self._idler = None
         if self.timeout:
-            self._idler = self.ioloop.call_later(self.timeout,
-                                                 self.handle_timeout,
-                                                 _errback=self.handle_error)
+            self._idler = self.ioloop.call_later(
+                self.timeout, self.handle_timeout, _errback=self.handle_error
+            )
 
         if ip.count('.') == 3:
             self._cmd = "PORT"
-            self._normalized_addr = "%s:%s" % (ip, port)
+            self._normalized_addr = f"{ip}:{port}"
         else:
             self._cmd = "EPRT"
-            self._normalized_addr = "[%s]:%s" % (ip, port)
+            self._normalized_addr = f"[{ip}]:{port}"
 
         source_ip = self.cmd_channel.socket.getsockname()[0]
         # dual stack IPv4/IPv6 support
         try:
             self.connect_af_unspecified((ip, port), (source_ip, 0))
-        except (socket.gaierror, socket.error):
+        except (socket.gaierror, OSError):
             self.handle_close()
 
     def readable(self):
@@ -495,17 +608,13 @@ class ActiveDTP(Connector):
             self._idler.cancel()
         if not self.cmd_channel.connected:
             return self.close()
-        # fix for asyncore on python < 2.6, meaning we aren't
-        # actually connected.
         # test_active_conn_error tests this condition
         err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if err != 0:
-            raise socket.error(err)
-        #
+            raise OSError(err)
         msg = 'Active data connection established.'
         self.cmd_channel.respond('200 ' + msg)
         self.cmd_channel.log_cmd(self._cmd, self._normalized_addr, 200, msg)
-        #
         if not self.cmd_channel.connected:
             return self.close()
         # delegate such connection to DTP handler
@@ -518,7 +627,8 @@ class ActiveDTP(Connector):
             msg = "Active data channel timed out."
             self.cmd_channel.respond("421 " + msg, logfun=logger.info)
             self.cmd_channel.log_cmd(
-                self._cmd, self._normalized_addr, 421, msg)
+                self._cmd, self._normalized_addr, 421, msg
+            )
         self.close()
 
     def handle_close(self):
@@ -531,13 +641,14 @@ class ActiveDTP(Connector):
                 msg = "Can't connect to specified address."
                 self.cmd_channel.respond("425 " + msg)
                 self.cmd_channel.log_cmd(
-                    self._cmd, self._normalized_addr, 425, msg)
+                    self._cmd, self._normalized_addr, 425, msg
+                )
 
     def handle_error(self):
         """Called to handle any uncaught exceptions."""
         try:
-            raise
-        except (socket.gaierror, socket.error):
+            raise  # noqa: PLE0704
+        except (socket.gaierror, OSError):
             pass
         except Exception:
             self.log_exception(self)
@@ -578,9 +689,9 @@ class DTPHandler(AsyncChat):
     def __init__(self, sock, cmd_channel):
         """Initialize the command channel.
 
-         - (instance) sock: the socket object instance of the newly
-            established connection.
-         - (instance) cmd_channel: the command channel class instance.
+        - (instance) sock: the socket object instance of the newly
+           established connection.
+        - (instance) cmd_channel: the command channel class instance.
         """
         self.cmd_channel = cmd_channel
         self.file_obj = None
@@ -602,12 +713,13 @@ class DTPHandler(AsyncChat):
         self._initialized = False
         try:
             AsyncChat.__init__(self, sock, ioloop=cmd_channel.ioloop)
-        except socket.error as err:
+        except OSError as err:
             # if we get an exception here we want the dispatcher
             # instance to set socket attribute before closing, see:
             # https://github.com/giampaolo/pyftpdlib/issues/188
             AsyncChat.__init__(
-                self, socket.socket(), ioloop=cmd_channel.ioloop)
+                self, socket.socket(), ioloop=cmd_channel.ioloop
+            )
             # https://github.com/giampaolo/pyftpdlib/issues/143
             self.close()
             if err.errno == errno.EINVAL:
@@ -620,13 +732,15 @@ class DTPHandler(AsyncChat):
             self.close()
             return
         if self.timeout:
-            self._idler = self.ioloop.call_every(self.timeout,
-                                                 self.handle_timeout,
-                                                 _errback=self.handle_error)
+            self._idler = self.ioloop.call_every(
+                self.timeout, self.handle_timeout, _errback=self.handle_error
+            )
 
     def __repr__(self):
-        return '<%s(%s)>' % (self.__class__.__name__,
-                             self.cmd_channel.get_repr_info(as_str=True))
+        return '<%s(%s)>' % (  # noqa: UP031
+            self.__class__.__name__,
+            self.cmd_channel.get_repr_info(as_str=True),  # noqa: UP031
+        )
 
     __str__ = __repr__
 
@@ -645,7 +759,7 @@ class DTPHandler(AsyncChat):
             self.file_obj.fileno()
         except (OSError, ValueError):
             return False
-        if self.cmd_channel._current_type != 'i':
+        if self.cmd_channel._current_type != 'i':  # noqa: SIM103
             # text file transfer (need to transform file content on the fly)
             return False
         return True
@@ -682,20 +796,24 @@ class DTPHandler(AsyncChat):
     def initiate_sendfile(self):
         """A wrapper around sendfile."""
         try:
-            sent = sendfile(self._fileno, self._filefd, self._offset,
-                            self.ac_out_buffer_size)
+            sent = os.sendfile(
+                self._fileno,
+                self._filefd,
+                self._offset,
+                self.ac_out_buffer_size,
+            )
         except OSError as err:
             if err.errno in _ERRNOS_RETRY or err.errno == errno.EBUSY:
                 return
             elif err.errno in _ERRNOS_DISCONNECTED:
                 self.handle_close()
+            elif self.tot_bytes_sent == 0:
+                logger.warning(
+                    "sendfile() failed; falling back on using plain send"
+                )
+                raise _GiveUpOnSendfile
             else:
-                if self.tot_bytes_sent == 0:
-                    logger.warning(
-                        "sendfile() failed; falling back on using plain send")
-                    raise _GiveUpOnSendfile
-                else:
-                    raise
+                raise
         else:
             if sent == 0:
                 # this signals the channel that the transfer is completed
@@ -721,7 +839,7 @@ class DTPHandler(AsyncChat):
         else:
             self._had_cr = False
 
-        return chunk.replace(b'\r\n', b(os.linesep))
+        return chunk.replace(b'\r\n', bytes(os.linesep, "ascii"))
 
     def enable_receiving(self, type, cmd):
         """Enable receiving of data over the channel. Depending on the
@@ -765,7 +883,7 @@ class DTPHandler(AsyncChat):
         return result
 
     def refill_buffer(self):  # pragma: no cover
-        """Overridden as a fix around http://bugs.python.org/issue1740572
+        """Overridden as a fix around https://bugs.python.org/issue1740572
         (when the producer is consumed, close() was called instead of
         handle_close()).
         """
@@ -786,7 +904,7 @@ class DTPHandler(AsyncChat):
                     return
                 data = p.more()
                 if data:
-                    self.ac_out_buffer = self.ac_out_buffer + data
+                    self.ac_out_buffer += data
                     return
                 else:
                     self.producer_fifo.pop()
@@ -799,7 +917,7 @@ class DTPHandler(AsyncChat):
             chunk = self.recv(self.ac_in_buffer_size)
         except RetryError:
             pass
-        except socket.error:
+        except OSError:
             self.handle_error()
         else:
             self.tot_bytes_received += len(chunk)
@@ -848,7 +966,7 @@ class DTPHandler(AsyncChat):
     def handle_error(self):
         """Called when an exception is raised and not otherwise handled."""
         try:
-            raise
+            raise  # noqa: PLE0704
         # an error could occur in case we fail reading / writing
         # from / to file (e.g. file system gets full)
         except _FileReadWriteError as err:
@@ -859,7 +977,7 @@ class DTPHandler(AsyncChat):
             self.log_exception(self)
             error = "Internal error"
         try:
-            self._resp = ("426 %s; transfer aborted." % error, logger.warning)
+            self._resp = (f"426 {error}; transfer aborted.", logger.warning)
             self.close()
         except Exception:
             logger.critical(traceback.format_exc())
@@ -882,8 +1000,13 @@ class DTPHandler(AsyncChat):
                     self._resp = ("226 Transfer complete.", logger.debug)
                 else:
                     tot_bytes = self.get_transmitted_bytes()
-                    self._resp = ("426 Transfer aborted; %d bytes transmitted."
-                                  % tot_bytes, logger.debug)
+                    self._resp = (
+                        (
+                            f"426 Transfer aborted; {int(tot_bytes)} bytes"
+                            " transmitted."
+                        ),
+                        logger.debug,
+                    )
             finally:
                 self.close()
 
@@ -913,33 +1036,21 @@ class DTPHandler(AsyncChat):
                     receive=self.receive,
                     completed=self.transfer_finished,
                     elapsed=elapsed_time,
-                    bytes=self.get_transmitted_bytes())
+                    bytes=self.get_transmitted_bytes(),
+                )
                 if self.transfer_finished:
                     if self.receive:
                         self.cmd_channel.on_file_received(filename)
                     else:
                         self.cmd_channel.on_file_sent(filename)
+                elif self.receive:
+                    self.cmd_channel.on_incomplete_file_received(filename)
                 else:
-                    if self.receive:
-                        self.cmd_channel.on_incomplete_file_received(filename)
-                    else:
-                        self.cmd_channel.on_incomplete_file_sent(filename)
+                    self.cmd_channel.on_incomplete_file_sent(filename)
             self.cmd_channel._on_dtp_close()
 
 
-# dirty hack in order to turn AsyncChat into a new style class in
-# python 2.x so that we can use super()
-if PY3:
-    class _AsyncChatNewStyle(AsyncChat):
-        pass
-else:
-    class _AsyncChatNewStyle(object, AsyncChat):  # noqa
-
-        def __init__(self, *args, **kwargs):
-            super(object, self).__init__(*args, **kwargs)  # bypass object
-
-
-class ThrottledDTPHandler(_AsyncChatNewStyle, DTPHandler):
+class ThrottledDTPHandler(DTPHandler):
     """A DTPHandler subclass which wraps sending and receiving in a data
     counter and temporarily "sleeps" the channel so that you burst to no
     more than x Kb/sec average.
@@ -956,6 +1067,7 @@ class ThrottledDTPHandler(_AsyncChatNewStyle, DTPHandler):
        and write limits which results in a less bursty and smoother
        throughput (default: True).
     """
+
     read_limit = 0
     write_limit = 0
     auto_sized_buffers = True
@@ -1019,7 +1131,8 @@ class ThrottledDTPHandler(_AsyncChatNewStyle, DTPHandler):
                 self.del_channel()
                 self._cancel_throttler()
                 self._throttler = self.ioloop.call_later(
-                    sleepfor, unsleep, _errback=self.handle_error)
+                    sleepfor, unsleep, _errback=self.handle_error
+                )
             self._timenext = now + 1
 
     def close(self):
@@ -1038,8 +1151,8 @@ class FileProducer:
     def __init__(self, file, type):
         """Initialize the producer with a data_wrapper appropriate to TYPE.
 
-         - (file) file: the file[-like] object.
-         - (str) type: the current TYPE, 'a' (ASCII) or 'i' (binary).
+        - (file) file: the file[-like] object.
+        - (str) type: the current TYPE, 'a' (ASCII) or 'i' (binary).
         """
         self.file = file
         self.type = type
@@ -1083,6 +1196,7 @@ class FileProducer:
 
 class BufferedIteratorProducer:
     """Producer for iterator objects with buffer capabilities."""
+
     # how many times iterator.next() will be called before
     # returning some data
     loops = 20
@@ -1095,7 +1209,7 @@ class BufferedIteratorProducer:
         its next() method different times.
         """
         buffer = []
-        for _ in xrange(self.loops):
+        for _ in range(self.loops):
             try:
                 buffer.append(next(self.iterator))
             except StopIteration:
@@ -1104,6 +1218,7 @@ class BufferedIteratorProducer:
 
 
 # --- FTP
+
 
 class FTPHandler(AsyncChat):
     """Implements the FTP server Protocol Interpreter (see RFC-959),
@@ -1162,20 +1277,19 @@ class FTPHandler(AsyncChat):
 
      - (bool) use_sendfile: when True uses sendfile() system call to
         send a file resulting in faster uploads (from server to client).
-        Works on UNIX only and requires pysendfile module to be
-        installed separately:
-        https://github.com/giampaolo/pysendfile/
-        Automatically defaults to True if pysendfile module is
-        installed.
+        Linux only.
 
      - (bool) tcp_no_delay: controls the use of the TCP_NODELAY socket
         option which disables the Nagle algorithm resulting in
         significantly better performances (default True on all systems
         where it is supported).
 
+     - (str) encoding: the encoding used for client / server
+       communication. Defaults to 'utf-8'.
+
      - (str) unicode_errors:
        the error handler passed to ''.encode() and ''.decode():
-       http://docs.python.org/library/stdtypes.html#str.decode
+       https://docs.python.org/library/stdtypes.html#str.decode
        (detaults to 'replace').
 
      - (str) log_prefix:
@@ -1195,6 +1309,7 @@ class FTPHandler(AsyncChat):
      - (instance) server: the FTPServer class instance.
      - (instance) data_channel: the data channel instance (if any).
     """
+
     # these are overridable defaults
 
     # default classes
@@ -1207,7 +1322,7 @@ class FTPHandler(AsyncChat):
 
     # session attributes (explained in the docstring)
     timeout = 300
-    banner = "pyftpdlib %s ready." % __ver__
+    banner = f"pyftpdlib {__ver__} ready."
     max_login_attempts = 3
     permit_foreign_addresses = False
     permit_privileged_ports = False
@@ -1215,8 +1330,9 @@ class FTPHandler(AsyncChat):
     masquerade_address_map = {}
     passive_ports = None
     use_gmt_times = True
-    use_sendfile = sendfile is not None
+    use_sendfile = hasattr(os, "sendfile")  # added in python 3.3
     tcp_no_delay = hasattr(socket, "TCP_NODELAY")
+    encoding = "utf8"
     unicode_errors = 'replace'
     log_prefix = '%(remote_ip)s:%(remote_port)s-[%(username)s]'
     auth_failed_timeout = 3
@@ -1224,12 +1340,11 @@ class FTPHandler(AsyncChat):
     def __init__(self, conn, server, ioloop=None):
         """Initialize the command channel.
 
-         - (instance) conn: the socket object instance of the newly
-            established connection.
-         - (instance) server: the ftp server class instance.
+        - (instance) conn: the socket object instance of the newly
+           established connection.
+        - (instance) server: the ftp server class instance.
         """
         # public session attributes
-        self.__encoding='utf8'
         self.server = server
         self.fs = None
         self.authenticated = False
@@ -1257,8 +1372,9 @@ class FTPHandler(AsyncChat):
         self._current_facts = ['type', 'perm', 'size', 'modify']
         self._rnfr = None
         self._idler = None
-        self._log_debug = logging.getLogger('pyftpdlib').getEffectiveLevel() \
-            <= logging.DEBUG
+        self._log_debug = (
+            logging.getLogger('pyftpdlib').getEffectiveLevel() <= logging.DEBUG
+        )
 
         if os.name == 'posix':
             self._current_facts.append('unique')
@@ -1270,13 +1386,13 @@ class FTPHandler(AsyncChat):
 
         try:
             AsyncChat.__init__(self, conn, ioloop=ioloop)
-        except socket.error as err:
+        except OSError as err:
             # if we get an exception here we want the dispatcher
             # instance to set socket attribute before closing, see:
             # https://github.com/giampaolo/pyftpdlib/issues/188
             AsyncChat.__init__(self, socket.socket(), ioloop=ioloop)
             self.close()
-            debug("call: FTPHandler.__init__, err %r" % err, self)
+            debug(f"call: FTPHandler.__init__, err {err!r}", self)
             if err.errno == errno.EINVAL:
                 # https://github.com/giampaolo/pyftpdlib/issues/143
                 return
@@ -1287,9 +1403,11 @@ class FTPHandler(AsyncChat):
         # connection properties
         try:
             self.remote_ip, self.remote_port = self.socket.getpeername()[:2]
-        except socket.error as err:
-            debug("call: FTPHandler.__init__, err on getpeername() %r" % err,
-                  self)
+        except OSError as err:
+            debug(
+                f"call: FTPHandler.__init__, err on getpeername() {err!r}",
+                self,
+            )
             # A race condition  may occur if the other end is closing
             # before we can get the peername, hence ENOTCONN (see issue
             # #100) while EINVAL can occur on OSX (see issue #143).
@@ -1300,24 +1418,26 @@ class FTPHandler(AsyncChat):
                 self.handle_error()
             return
         else:
-            self.log("FTP session opened (connect)")
+            self.log("FTP会话已打开")
 
         # try to handle urgent data inline
         try:
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_OOBINLINE, 1)
-        except socket.error as err:
-            debug("call: FTPHandler.__init__, err on SO_OOBINLINE %r" % err,
-                  self)
+        except OSError as err:
+            debug(
+                f"call: FTPHandler.__init__, err on SO_OOBINLINE {err!r}", self
+            )
 
         # disable Nagle algorithm for the control socket only, resulting
         # in significantly better performances
         if self.tcp_no_delay:
             try:
                 self.socket.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-            except socket.error as err:
+            except OSError as err:
                 debug(
-                    "call: FTPHandler.__init__, err on TCP_NODELAY %r" % err,
-                    self)
+                    f"call: FTPHandler.__init__, err on TCP_NODELAY {err!r}",
+                    self,
+                )
 
         # remove this instance from IOLoop's socket_map
         if not self.connected:
@@ -1326,23 +1446,15 @@ class FTPHandler(AsyncChat):
 
         if self.timeout:
             self._idler = self.ioloop.call_later(
-                self.timeout, self.handle_timeout, _errback=self.handle_error)
-
-    @property
-    def encoding(self):
-        return self.__encoding
-    
-    @encoding.setter
-    def encoding(self,value):
-        self.__encoding=value
-        self.fs.encoding=value
+                self.timeout, self.handle_timeout, _errback=self.handle_error
+            )
 
     def get_repr_info(self, as_str=False, extra_info=None):
         if extra_info is None:
             extra_info = {}
-        info = OrderedDict()
+        info = {}
         info['id'] = id(self)
-        info['addr'] = "%s:%s" % (self.remote_ip, self.remote_port)
+        info['addr'] = f"{self.remote_ip}:{self.remote_port}"
         if _is_ssl_sock(self.socket):
             info['ssl'] = True
         if self.username:
@@ -1362,11 +1474,11 @@ class FTPHandler(AsyncChat):
                 info['bytes-trans'] = dc.get_transmitted_bytes()
         info.update(extra_info)
         if as_str:
-            return ', '.join(['%s=%r' % (k, v) for (k, v) in info.items()])
+            return ', '.join([f'{k}={v!r}' for (k, v) in info.items()])
         return info
 
     def __repr__(self):
-        return '<%s(%s)>' % (self.__class__.__name__, self.get_repr_info(True))
+        return f'<{self.__class__.__name__}({self.get_repr_info(True)})>'
 
     __str__ = __repr__
 
@@ -1377,9 +1489,9 @@ class FTPHandler(AsyncChat):
         self.on_connect()
         if not self._closed and not self._closing:
             if len(self.banner) <= 75:
-                self.respond("220 %s" % str(self.banner))
+                self.respond(f"220 {self.banner!s}")
             else:
-                self.push('220-%s\r\n' % str(self.banner))
+                self.push(f'220-{self.banner!s}\r\n')
                 self.respond('220 ')
 
     def handle_max_cons(self):
@@ -1457,23 +1569,25 @@ class FTPHandler(AsyncChat):
         self._in_buffer_len = 0
 
         cmd = line.split(' ')[0].upper()
-        arg = line[len(cmd) + 1:]
+        arg = line[len(cmd) + 1 :]
         try:
             self.pre_process_command(line, cmd, arg)
         except UnicodeEncodeError:
-            self.respond("501 can't decode path (server filesystem encoding "
-                         "is %s)" % sys.getfilesystemencoding())
+            self.respond(
+                "501 can't decode path (server filesystem encoding is"
+                f" {sys.getfilesystemencoding()})"
+            )
 
     def pre_process_command(self, line, cmd, arg):
         kwargs = {}
         if cmd == "SITE" and arg:
-            cmd = "SITE %s" % arg.split(' ')[0].upper()
-            arg = line[len(cmd) + 1:]
+            cmd = f"SITE {arg.split(' ')[0].upper()}"
+            arg = line[len(cmd) + 1 :]
 
         if cmd != 'PASS':
-            self.logline("<- %s" % line)
+            self.logline(f"<- {line}")
         else:
-            self.logline("<- %s %s" % (line.split(' ')[0], '*' * 6))
+            self.logline(f"<- {line.split(' ')[0]} {'*' * 6}")
 
         # Recognize those commands having a "special semantic". They
         # should be sent by following the RFC-959 procedure of sending
@@ -1484,7 +1598,7 @@ class FTPHandler(AsyncChat):
             if cmd[-4:] in ('ABOR', 'STAT', 'QUIT'):
                 cmd = cmd[-4:]
             else:
-                msg = 'Command "%s" not understood.' % cmd
+                msg = f'Command "{cmd}" not understood.'
                 self.respond('500 ' + msg)
                 if cmd:
                     self.log_cmd(cmd, arg, 500, msg)
@@ -1512,16 +1626,16 @@ class FTPHandler(AsyncChat):
                 return
         else:
             if (cmd == 'STAT') and not arg:
-                self.ftp_STAT(u(''))
+                self.ftp_STAT('')
                 return
 
             # for file-system related commands check whether real path
             # destination is valid
             if self.proto_cmds[cmd]['perm'] and (cmd != 'STOU'):
                 if cmd in ('CWD', 'XCWD'):
-                    arg = self.fs.ftp2fs(arg or u('/'))
+                    arg = self.fs.ftp2fs(arg or '/')
                 elif cmd in ('CDUP', 'XCUP'):
-                    arg = self.fs.ftp2fs(u('..'))
+                    arg = self.fs.ftp2fs('..')
                 elif cmd == 'LIST':
                     if arg.lower() in ('-a', '-l', '-al', '-la'):
                         arg = self.fs.ftp2fs(self.fs.cwd)
@@ -1560,9 +1674,9 @@ class FTPHandler(AsyncChat):
 
                 if not self.fs.validpath(arg):
                     line = self.fs.fs2ftp(arg)
-                    msg = "%r points to a path which is outside " % line
+                    msg = f"{line!r} points to a path which is outside "
                     msg += "the user's root directory"
-                    self.respond("550 %s." % msg)
+                    self.respond(f"550 {msg}.")
                     self.log_cmd(cmd, arg, 550, msg)
                     return
 
@@ -1637,13 +1751,14 @@ class FTPHandler(AsyncChat):
             if self.fs is not None:
                 self.fs.cmd_channel = None
                 self.fs = None
-            self.log("FTP session closed (disconnect).")
+            self.log("FTP会话已关闭")
             # Having self.remote_ip not set means that no connection
             # actually took place, hence we're not interested in
             # invoking the callback.
             if self.remote_ip:
-                self.ioloop.call_later(0, self.on_disconnect,
-                                       _errback=self.handle_error)
+                self.ioloop.call_later(
+                    0, self.on_disconnect, _errback=self.handle_error
+                )
 
     def _shutdown_connecting_dtp(self):
         """Close any ActiveDTP or PassiveDTP instance waiting to
@@ -1762,7 +1877,8 @@ class FTPHandler(AsyncChat):
             if self._idler is not None and not self._idler.cancelled:
                 self._idler.cancel()
             self._idler = self.ioloop.call_later(
-                self.timeout, self.handle_timeout, _errback=self.handle_error)
+                self.timeout, self.handle_timeout, _errback=self.handle_error
+            )
 
     # --- utility
 
@@ -1774,7 +1890,7 @@ class FTPHandler(AsyncChat):
         self._last_response = resp
         self.push(resp + '\r\n')
         if self._log_debug:
-            self.logline('-> %s' % resp, logfun=logfun)
+            self.logline(f'-> {resp}', logfun=logfun)
         else:
             self.log(resp[4:], logfun=logfun)
 
@@ -1797,7 +1913,8 @@ class FTPHandler(AsyncChat):
         """
         if self.data_channel is not None:
             self.respond(
-                "125 Data connection already open. Transfer starting.")
+                "125 Data connection already open. Transfer starting."
+            )
             if file:
                 self.data_channel.file_obj = file
             try:
@@ -1813,7 +1930,8 @@ class FTPHandler(AsyncChat):
                 self.data_channel.handle_error()
         else:
             self.respond(
-                "150 File status okay. About to open data connection.")
+                "150 File status okay. About to open data connection."
+            )
             self._out_dtp_queue = (data, isproducer, file, cmd)
 
     def flush_account(self):
@@ -1858,7 +1976,7 @@ class FTPHandler(AsyncChat):
     def log(self, msg, logfun=logger.info):
         """Log a message, including additional identifying session data."""
         prefix = self.log_prefix % self.__dict__
-        logfun("%s %s" % (prefix, msg))
+        logfun(f"{prefix} {msg}")
 
     def logline(self, msg, logfun=logger.debug):
         """Log a line including additional identifying session data.
@@ -1866,12 +1984,12 @@ class FTPHandler(AsyncChat):
         """
         if self._log_debug:
             prefix = self.log_prefix % self.__dict__
-            logfun("%s %s" % (prefix, msg))
+            logfun(f"{prefix} {msg}")
 
     def logerror(self, msg):
         """Log an error including additional identifying session data."""
         prefix = self.log_prefix % self.__dict__
-        logger.error("%s %s" % (prefix, msg))
+        logger.error(f"{prefix} {msg}")
 
     def log_exception(self, instance):
         """Log an unhandled exception. 'instance' is the instance
@@ -1881,9 +1999,20 @@ class FTPHandler(AsyncChat):
 
     # the list of commands which gets logged when logging level
     # is >= logging.INFO
-    log_cmds_list = ["DELE", "RNFR", "RNTO", "MKD", "RMD", "CWD",
-                     "XMKD", "XRMD", "XCWD",
-                     "REIN", "SITE CHMOD", "MFMT"]
+    log_cmds_list = [
+        "DELE",
+        "RNFR",
+        "RNTO",
+        "MKD",
+        "RMD",
+        "CWD",
+        "XMKD",
+        "XRMD",
+        "XCWD",
+        "REIN",
+        "SITE CHMOD",
+        "MFMT",
+    ]
 
     def log_cmd(self, cmd, arg, respcode, respstr):
         """Log commands and responses in a standardized format.
@@ -1914,36 +2043,34 @@ class FTPHandler(AsyncChat):
         further commands.
         """
         if not self._log_debug and cmd in self.log_cmds_list:
-            line = '%s %s' % (' '.join([cmd, arg]).strip(), respcode)
+            line = f"{cmd.strip()} {arg.strip()} {respcode}"
             if str(respcode)[0] in ('4', '5'):
-                line += ' %r' % respstr
+                line += f' {respstr!r}'
             self.log(line)
 
     def log_transfer(self, cmd, filename, receive, completed, elapsed, bytes):
         """Log all file transfers in a standardized format.
 
-         - (str) cmd:
-            the original command who caused the transfer.
+        - (str) cmd:
+           the original command who caused the transfer.
 
-         - (str) filename:
-            the absolutized name of the file on disk.
+        - (str) filename:
+           the absolutized name of the file on disk.
 
-         - (bool) receive:
-            True if the transfer was used for client uploading (STOR,
-            STOU, APPE), False otherwise (RETR).
+        - (bool) receive:
+           True if the transfer was used for client uploading (STOR,
+           STOU, APPE), False otherwise (RETR).
 
-         - (bool) completed:
-            True if the file has been entirely sent, else False.
+        - (bool) completed:
+           True if the file has been entirely sent, else False.
 
-         - (float) elapsed:
-            transfer elapsed time in seconds.
+        - (float) elapsed:
+           transfer elapsed time in seconds.
 
-         - (int) bytes:
-            number of bytes transmitted.
+        - (int) bytes:
+           number of bytes transmitted.
         """
-        # line = '%s %s completed=%s bytes=%s seconds=%s' % \
-        #     (cmd, filename, completed and 1 or 0, bytes, elapsed)
-        def byte2Str(bytes:int):
+        def byte2Str(bytes: int):
             if bytes < 1024:
                 return f"{bytes} Bytes"
             elif bytes < 1024**2:
@@ -1953,7 +2080,7 @@ class FTPHandler(AsyncChat):
             else:
                 return f"{bytes/(1024.0**3):.2f} GiB"
 
-        def elapsed2Str(elapsed:float):
+        def elapsed2Str(elapsed: float):
             if elapsed < 1e-3:
                 return f"{elapsed*1e6:.2f} 微秒"
             elif elapsed < 1.0:
@@ -1980,21 +2107,22 @@ class FTPHandler(AsyncChat):
             # the remote client is using IPv4 and its address is
             # represented as an IPv4-mapped IPv6 address which
             # looks like this ::ffff:151.12.5.65, see:
-            # http://en.wikipedia.org/wiki/IPv6#IPv4-mapped_addresses
-            # http://tools.ietf.org/html/rfc3493.html#section-3.7
+            # https://en.wikipedia.org/wiki/IPv6#IPv4-mapped_addresses
+            # https://datatracker.ietf.org/doc/html/rfc3493.html#section-3.7
             # We truncate the first bytes to make it look like a
             # common IPv4 address.
             remote_ip = remote_ip[7:]
         if not self.permit_foreign_addresses and ip != remote_ip:
-            msg = "501 Rejected data connection to foreign address %s:%s." \
-                % (ip, port)
+            msg = (
+                f"501 Rejected data connection to foreign address {ip}:{port}."
+            )
             self.respond_w_warning(msg)
             return
 
         # ...another RFC-2577 recommendation is rejecting connections
         # to privileged ports (< 1024) for security reasons.
         if not self.permit_privileged_ports and port < 1024:
-            msg = '501 PORT against the privileged port "%s" refused.' % port
+            msg = f'501 PORT against the privileged port "{port}" refused.'
             self.respond_w_warning(msg)
             return
 
@@ -2086,8 +2214,10 @@ class FTPHandler(AsyncChat):
 
         if af == "1":
             # test if AF_INET6 and IPV6_V6ONLY
-            if (self.socket.family == socket.AF_INET6 and not
-                    SUPPORTS_HYBRID_IPV6):
+            if (
+                self.socket.family == socket.AF_INET6
+                and not SUPPORTS_HYBRID_IPV6
+            ):
                 self.respond('522 Network protocol not supported (use 2).')
             else:
                 try:
@@ -2106,11 +2236,10 @@ class FTPHandler(AsyncChat):
                 self.respond('522 Network protocol not supported (use 1).')
             else:
                 self._make_eport(ip, port)
+        elif self.socket.family == socket.AF_INET:
+            self.respond('501 Unknown network protocol (use 1).')
         else:
-            if self.socket.family == socket.AF_INET:
-                self.respond('501 Unknown network protocol (use 1).')
-            else:
-                self.respond('501 Unknown network protocol (use 2).')
+            self.respond('501 Unknown network protocol (use 2).')
 
     def ftp_PASV(self, line):
         """Start a passive data channel by using IPv4."""
@@ -2151,12 +2280,12 @@ class FTPHandler(AsyncChat):
         elif line.lower() == 'all':
             self._epsvall = True
             self.respond(
-                '220 Other commands other than EPSV are now disabled.')
+                '220 Other commands other than EPSV are now disabled.'
+            )
+        elif self.socket.family == socket.AF_INET:
+            self.respond('501 Unknown network protocol (use 1).')
         else:
-            if self.socket.family == socket.AF_INET:
-                self.respond('501 Unknown network protocol (use 1).')
-            else:
-                self.respond('501 Unknown network protocol (use 2).')
+            self.respond('501 Unknown network protocol (use 2).')
 
     def ftp_QUIT(self, line):
         """Quit the current session disconnecting the client."""
@@ -2165,9 +2294,9 @@ class FTPHandler(AsyncChat):
         else:
             msg_quit = "Goodbye."
         if len(msg_quit) <= 75:
-            self.respond("221 %s" % msg_quit)
+            self.respond(f"221 {msg_quit}")
         else:
-            self.push("221-%s\r\n" % msg_quit)
+            self.push(f"221-{msg_quit}\r\n")
             self.respond("221 ")
 
         # From RFC-959:
@@ -2197,17 +2326,8 @@ class FTPHandler(AsyncChat):
             isdir = self.fs.isdir(path)
             if isdir:
                 listing = self.run_as_current_user(self.fs.listdir, path)
-                if isinstance(listing, list):
-                    try:
-                        # RFC 959 recommends the listing to be sorted.
-                        listing.sort()
-                    except UnicodeDecodeError:
-                        # (Python 2 only) might happen on filesystem not
-                        # supporting UTF8 meaning os.listdir() returned a list
-                        # of mixed bytes and unicode strings:
-                        # http://goo.gl/6DLHD
-                        # http://bugs.python.org/issue683592
-                        pass
+                # RFC 959 recommends the listing to be sorted.
+                listing.sort()
                 iterator = self.fs.format_list(path, listing)
             else:
                 basedir, filename = os.path.split(path)
@@ -2215,7 +2335,7 @@ class FTPHandler(AsyncChat):
                 iterator = self.fs.format_list(basedir, [filename])
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             producer = BufferedIteratorProducer(iterator)
             self.push_dtp_data(producer, isproducer=True, cmd="LIST")
@@ -2234,24 +2354,12 @@ class FTPHandler(AsyncChat):
                 self.fs.lstat(path)  # raise exc in case of problems
                 listing = [os.path.basename(path)]
         except (OSError, FilesystemError) as err:
-            self.respond('550 %s.' % _strerror(err))
+            self.respond(f'550 {_strerror(err)}.')
         else:
             data = ''
             if listing:
-                try:
-                    listing.sort()
-                except UnicodeDecodeError:
-                    # (Python 2 only) might happen on filesystem not
-                    # supporting UTF8 meaning os.listdir() returned a list
-                    # of mixed bytes and unicode strings:
-                    # http://goo.gl/6DLHD
-                    # http://bugs.python.org/issue683592
-                    ls = []
-                    for x in listing:
-                        if not isinstance(x, unicode):
-                            x = unicode(x, self.encoding)
-                        ls.append(x)
-                    listing = sorted(ls)
+                # RFC 959 recommends the listing to be sorted.
+                listing.sort()
                 data = '\r\n'.join(listing) + '\r\n'
             data = data.encode(self.encoding, self.unicode_errors)
             self.push_dtp_data(data, cmd="NLST")
@@ -2274,18 +2382,23 @@ class FTPHandler(AsyncChat):
         perms = self.authorizer.get_perms(self.username)
         try:
             iterator = self.run_as_current_user(
-                self.fs.format_mlsx, basedir, [basename], perms,
-                self._current_facts, ignore_err=False)
+                self.fs.format_mlsx,
+                basedir,
+                [basename],
+                perms,
+                self._current_facts,
+                ignore_err=False,
+            )
             data = b''.join(iterator)
         except (OSError, FilesystemError) as err:
-            self.respond('550 %s.' % _strerror(err))
+            self.respond(f'550 {_strerror(err)}.')
         else:
             data = data.decode(self.encoding, self.unicode_errors)
             # since TVFS is supported (see RFC-3659 chapter 6), a fully
             # qualified pathname should be returned
-            data = data.split(' ')[0] + ' %s\r\n' % line
+            data = data.split(' ')[0] + f' {line}\r\n'
             # response is expected on the command channel
-            self.push('250-Listing "%s":\r\n' % line)
+            self.push(f'250-Listing "{line}":\r\n')
             # the fact set must be preceded by a space
             self.push(' ' + data)
             self.respond('250 End MLST.')
@@ -2304,11 +2417,12 @@ class FTPHandler(AsyncChat):
             listing = self.run_as_current_user(self.fs.listdir, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             perms = self.authorizer.get_perms(self.username)
-            iterator = self.fs.format_mlsx(path, listing, perms,
-                                           self._current_facts)
+            iterator = self.fs.format_mlsx(
+                path, listing, perms, self._current_facts
+            )
             producer = BufferedIteratorProducer(iterator)
             self.push_dtp_data(producer, isproducer=True, cmd="MLSD")
             return path
@@ -2321,9 +2435,9 @@ class FTPHandler(AsyncChat):
         self._restart_position = 0
         try:
             fd = self.run_as_current_user(self.fs.open, file, 'rb')
-        except (EnvironmentError, FilesystemError) as err:
+        except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
             return
 
         try:
@@ -2341,13 +2455,12 @@ class FTPHandler(AsyncChat):
                     fd.seek(rest_pos)
                     ok = 1
                 except ValueError:
-                    why = "REST position (%s) > file size (%s)" % (
-                        rest_pos, fsize)
-                except (EnvironmentError, FilesystemError) as err:
+                    why = f"REST position ({rest_pos}) > file size ({fsize})"
+                except (OSError, FilesystemError) as err:
                     why = _strerror(err)
                 if not ok:
                     fd.close()
-                    self.respond('554 %s' % why)
+                    self.respond(f'554 {why}')
                     return
             producer = FileProducer(fd, self._current_type)
             self.push_dtp_data(producer, isproducer=True, file=fd, cmd="RETR")
@@ -2372,9 +2485,9 @@ class FTPHandler(AsyncChat):
             mode = 'r+'
         try:
             fd = self.run_as_current_user(self.fs.open, file, mode + 'b')
-        except (EnvironmentError, FilesystemError) as err:
+        except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
             return
 
         try:
@@ -2392,13 +2505,12 @@ class FTPHandler(AsyncChat):
                     fd.seek(rest_pos)
                     ok = 1
                 except ValueError:
-                    why = "REST position (%s) > file size (%s)" % (
-                        rest_pos, fsize)
-                except (EnvironmentError, FilesystemError) as err:
+                    why = f"REST position ({rest_pos}) > file size ({fsize})"
+                except (OSError, FilesystemError) as err:
                     why = _strerror(err)
                 if not ok:
                     fd.close()
-                    self.respond('554 %s' % why)
+                    self.respond(f'554 {why}')
                     return
 
             if self.data_channel is not None:
@@ -2436,14 +2548,15 @@ class FTPHandler(AsyncChat):
 
         if line:
             basedir, prefix = os.path.split(self.fs.ftp2fs(line))
-            prefix = prefix + '.'
+            prefix += '.'
         else:
             basedir = self.fs.ftp2fs(self.fs.cwd)
             prefix = 'ftpd.'
         try:
-            fd = self.run_as_current_user(self.fs.mkstemp, prefix=prefix,
-                                          dir=basedir)
-        except (EnvironmentError, FilesystemError) as err:
+            fd = self.run_as_current_user(
+                self.fs.mkstemp, prefix=prefix, dir=basedir
+            )
+        except (OSError, FilesystemError) as err:
             # likely, we hit the max number of retries to find out a
             # file with a unique name
             if getattr(err, "errno", -1) == errno.EEXIST:
@@ -2451,7 +2564,7 @@ class FTPHandler(AsyncChat):
             # something else happened
             else:
                 why = _strerror(err)
-            self.respond("450 %s." % why)
+            self.respond(f"450 {why}.")
             return
 
         try:
@@ -2467,11 +2580,11 @@ class FTPHandler(AsyncChat):
             # now just acts like STOR except that restarting isn't allowed
             filename = os.path.basename(fd.name)
             if self.data_channel is not None:
-                self.respond("125 FILE: %s" % filename)
+                self.respond(f"125 FILE: {filename}")
                 self.data_channel.file_obj = fd
                 self.data_channel.enable_receiving(self._current_type, "STOU")
             else:
-                self.respond("150 FILE: %s" % filename)
+                self.respond(f"150 FILE: {filename}")
                 self._in_dtp_queue = (fd, "STOU")
             return filename
         except Exception:
@@ -2500,21 +2613,25 @@ class FTPHandler(AsyncChat):
         except (ValueError, OverflowError):
             self.respond("501 Invalid parameter.")
         else:
-            self.respond("350 Restarting at position %s." % marker)
+            self.respond(f"350 Restarting at position {marker}.")
             self._restart_position = marker
 
     def ftp_ABOR(self, line):
         """Abort the current data transfer."""
         # ABOR received while no data channel exists
-        if self._dtp_acceptor is None and \
-                self._dtp_connector is None and \
-                self.data_channel is None:
+        if (
+            self._dtp_acceptor is None
+            and self._dtp_connector is None
+            and self.data_channel is None
+        ):
             self.respond("225 No transfer to abort.")
             return
         else:
             # a PASV or PORT was received but connection wasn't made yet
-            if self._dtp_acceptor is not None or \
-                    self._dtp_connector is not None:
+            if (
+                self._dtp_acceptor is not None
+                or self._dtp_connector is not None
+            ):
                 self._shutdown_connecting_dtp()
                 resp = "225 ABOR command successful; data channel closed."
 
@@ -2529,8 +2646,9 @@ class FTPHandler(AsyncChat):
                 if self.data_channel.transfer_in_progress():
                     self.data_channel.close()
                     self.data_channel = None
-                    self.respond("426 Transfer aborted via ABOR.",
-                                 logfun=logger.info)
+                    self.respond(
+                        "426 Transfer aborted via ABOR.", logfun=logger.info
+                    )
                     resp = "226 ABOR command successful."
                 else:
                     self.data_channel.close()
@@ -2539,6 +2657,7 @@ class FTPHandler(AsyncChat):
         self.respond(resp)
 
         # --- authentication
+
     def ftp_USER(self, line):
         """Set the username for the current session."""
         # RFC-959 specifies a 530 response to the USER command if the
@@ -2557,7 +2676,7 @@ class FTPHandler(AsyncChat):
             # login sequence again.
             self.flush_account()
             msg = 'Previous account information was flushed'
-            self.respond('331 %s, send password.' % msg, logfun=logger.info)
+            self.respond(f'331 {msg}, send password.', logfun=logger.info)
         self.username = line
 
     def handle_auth_failed(self, msg, password):
@@ -2571,7 +2690,7 @@ class FTPHandler(AsyncChat):
                     self.close_when_done()
                 else:
                     self.respond("530 " + msg)
-                self.log(f"用户 [{username}] 登录失败")
+                self.log("匿名用户登录失败" if username == "anonymous" else f"用户 [{username}] 登录失败")
             self.on_login_failed(username, password)
 
         self.del_channel()
@@ -2583,34 +2702,28 @@ class FTPHandler(AsyncChat):
         else:
             # response string should be capitalized as per RFC-959
             msg = msg.capitalize()
-        self.ioloop.call_later(self.auth_failed_timeout, callback,
-                               self.username, password, msg,
-                               _errback=self.handle_error)
+        self.ioloop.call_later(
+            self.auth_failed_timeout,
+            callback,
+            self.username,
+            password,
+            msg,
+            _errback=self.handle_error,
+        )
         self.username = ""
 
     def handle_auth_success(self, home, password, msg_login):
-        if not isinstance(home, unicode):
-            if PY3:
-                raise TypeError('type(home) != text')
-            else:
-                warnings.warn(
-                    '%s.get_home_dir returned a non-unicode string; now '
-                    'casting to unicode' % (
-                        self.authorizer.__class__.__name__),
-                    RuntimeWarning, stacklevel=2)
-                home = home.decode(self.encoding)
-
         if len(msg_login) <= 75:
-            self.respond('230 %s' % msg_login)
+            self.respond(f'230 {msg_login}')
         else:
-            self.push("230-%s\r\n" % msg_login)
+            self.push(f"230-{msg_login}\r\n")
             self.respond("230 ")
-        self.log(f"用户 [{self.username}] 已登录")
+        self.log("匿名用户已登录" if self.username == "anonymous" else f"用户 [{self.username}] 已登录")
         self.authenticated = True
         self.password = password
         self.attempted_logins = 0
 
-        self.fs = self.abstracted_fs(home, self, self.encoding)
+        self.fs = self.abstracted_fs(home, self)
         self.on_login(self.username)
 
     def ftp_PASS(self, line):
@@ -2646,15 +2759,17 @@ class FTPHandler(AsyncChat):
         self.respond("230 Ready for new user.")
 
         # --- filesystem operations
+
     def ftp_PWD(self, line):
         """Return the name of the current working directory to the client."""
         # The 257 response is supposed to include the directory
         # name and in case it contains embedded double-quotes
         # they must be doubled (see RFC-959, chapter 7, appendix 2).
         cwd = self.fs.cwd
-        assert isinstance(cwd, unicode), cwd
-        self.respond('257 "%s" is the current directory.'
-                     % cwd.replace('"', '""'))
+        self.respond(
+            '257 "%s" is the current directory.'  # noqa: UP031
+            % cwd.replace('"', '""')  # noqa
+        )
 
     def ftp_CWD(self, path):
         """Change the current working directory.
@@ -2667,17 +2782,16 @@ class FTPHandler(AsyncChat):
         # the process is started we'll get into troubles (os.getcwd()
         # will fail with ENOENT) but we can't do anything about that
         # except logging an error.
-        init_cwd = getcwdu()
+        init_cwd = os.getcwd()
         try:
             self.run_as_current_user(self.fs.chdir, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             cwd = self.fs.cwd
-            assert isinstance(cwd, unicode), cwd
-            self.respond('250 "%s" is the current directory.' % cwd)
-            if getcwdu() != init_cwd:
+            self.respond(f'250 "{cwd}" is the current directory.')
+            if os.getcwd() != init_cwd:
                 os.chdir(init_cwd)
             return path
 
@@ -2708,19 +2822,19 @@ class FTPHandler(AsyncChat):
         line = self.fs.fs2ftp(path)
         if self._current_type == 'a':
             why = "SIZE not allowed in ASCII mode"
-            self.respond("550 %s." % why)
+            self.respond(f"550 {why}.")
             return
         if not self.fs.isfile(self.fs.realpath(path)):
-            why = "%s is not retrievable" % line
-            self.respond("550 %s." % why)
+            why = f"{line} is not retrievable"
+            self.respond(f"550 {why}.")
             return
         try:
             size = self.run_as_current_user(self.fs.getsize, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
-            self.respond("213 %s" % size)
+            self.respond(f"213 {size}")
 
     def ftp_MDTM(self, path):
         """Return last modification time of file to the client as an ISO
@@ -2729,7 +2843,7 @@ class FTPHandler(AsyncChat):
         """
         line = self.fs.fs2ftp(path)
         if not self.fs.isfile(self.fs.realpath(path)):
-            self.respond("550 %s is not retrievable" % line)
+            self.respond(f"550 {line} is not retrievable")
             return
         timefunc = time.gmtime if self.use_gmt_times else time.localtime
         try:
@@ -2742,13 +2856,13 @@ class FTPHandler(AsyncChat):
                 why = "Can't determine file's last modification time"
             else:
                 why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
-            self.respond("213 %s" % lmt)
+            self.respond(f"213 {lmt}")
             return path
 
     def ftp_MFMT(self, path, timeval):
-        """ Sets the last modification time of file to timeval
+        """Sets the last modification time of file to timeval
         3307 style timestamp (YYYYMMDDHHMMSS) as defined in RFC-3659.
         On success return the modified time and file path, else None.
         """
@@ -2761,20 +2875,20 @@ class FTPHandler(AsyncChat):
 
         if len(timeval) != len("YYYYMMDDHHMMSS"):
             why = "Invalid time format; expected: YYYYMMDDHHMMSS"
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
             return
         if not self.fs.isfile(self.fs.realpath(path)):
-            self.respond("550 %s is not retrievable" % line)
+            self.respond(f"550 {line} is not retrievable")
             return
         timefunc = time.gmtime if self.use_gmt_times else time.localtime
         try:
             # convert timeval string to epoch seconds
-            epoch = datetime.utcfromtimestamp(0)
+            epoch = datetime.fromtimestamp(0, datetime.UTC)
             timeval_datetime_obj = datetime.strptime(timeval, '%Y%m%d%H%M%S')
             timeval_secs = (timeval_datetime_obj - epoch).total_seconds()
         except ValueError:
             why = "Invalid time format; expected: YYYYMMDDHHMMSS"
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
             return
         try:
             # Modify Time
@@ -2789,9 +2903,9 @@ class FTPHandler(AsyncChat):
                 why = "Can't determine file's last modification time"
             else:
                 why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
-            self.respond("213 Modify=%s; %s." % (lmt, line))
+            self.respond(f"213 Modify={lmt}; {line}.")
             return (lmt, path)
 
     def ftp_MKD(self, path):
@@ -2803,13 +2917,14 @@ class FTPHandler(AsyncChat):
             self.run_as_current_user(self.fs.mkdir, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             # The 257 response is supposed to include the directory
             # name and in case it contains embedded double-quotes
             # they must be doubled (see RFC-959, chapter 7, appendix 2).
             self.respond(
-                '257 "%s" directory created.' % line.replace('"', '""'))
+                '257 "%s" directory created.' % line.replace('"', '""')  # noqa
+            )
             return path
 
     def ftp_RMD(self, path):
@@ -2818,13 +2933,13 @@ class FTPHandler(AsyncChat):
         """
         if self.fs.realpath(path) == self.fs.realpath(self.fs.root):
             msg = "Can't remove root directory."
-            self.respond("550 %s" % msg)
+            self.respond(f"550 {msg}")
             return
         try:
             self.run_as_current_user(self.fs.rmdir, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             self.respond("250 Directory removed.")
 
@@ -2836,7 +2951,7 @@ class FTPHandler(AsyncChat):
             self.run_as_current_user(self.fs.remove, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             self.respond("250 File removed.")
             return path
@@ -2866,12 +2981,13 @@ class FTPHandler(AsyncChat):
             self.run_as_current_user(self.fs.rename, src, path)
         except (OSError, FilesystemError) as err:
             why = _strerror(err)
-            self.respond('550 %s.' % why)
+            self.respond(f'550 {why}.')
         else:
             self.respond("250 Renaming ok.")
             return (src, path)
 
         # --- others
+
     def ftp_TYPE(self, line):
         """Set current type data type to binary/ascii."""
         type = line.upper().replace(' ', '')
@@ -2882,7 +2998,7 @@ class FTPHandler(AsyncChat):
             self.respond("200 Type set to: Binary.")
             self._current_type = 'i'
         else:
-            self.respond('504 Unsupported type "%s".' % line)
+            self.respond(f'504 Unsupported type "{line}".')
 
     def ftp_STRU(self, line):
         """Set file structure ("F" is the only one supported (noop))."""
@@ -2933,31 +3049,34 @@ class FTPHandler(AsyncChat):
         # return STATus information about ftpd
         if not path:
             s = []
-            s.append('Connected to: %s:%s' % self.socket.getsockname()[:2])
+            s.append(
+                'Connected to: %s:%s' % self.socket.getsockname()[:2]  # noqa
+            )
             if self.authenticated:
-                s.append('Logged in as: %s' % self.username)
+                s.append(f'Logged in as: {self.username}')
+            elif not self.username:
+                s.append("Waiting for username.")
             else:
-                if not self.username:
-                    s.append("Waiting for username.")
-                else:
-                    s.append("Waiting for password.")
+                s.append("Waiting for password.")
             type = 'ASCII' if self._current_type == 'a' else 'Binary'
-            s.append("TYPE: %s; STRUcture: File; MODE: Stream" % type)
+            s.append(f"TYPE: {type}; STRUcture: File; MODE: Stream")
             if self._dtp_acceptor is not None:
                 s.append('Passive data channel waiting for connection.')
             elif self.data_channel is not None:
                 bytes_sent = self.data_channel.tot_bytes_sent
                 bytes_recv = self.data_channel.tot_bytes_received
                 elapsed_time = self.data_channel.get_elapsed_time()
-                s.append('Data connection open:')
-                s.append('Total bytes sent: %s' % bytes_sent)
-                s.append('Total bytes received: %s' % bytes_recv)
-                s.append('Transfer elapsed time: %s secs' % elapsed_time)
+                s.extend((
+                    'Data connection open:',
+                    f'Total bytes sent: {bytes_sent}',
+                    f'Total bytes received: {bytes_recv}',
+                    f'Transfer elapsed time: {elapsed_time} secs',
+                ))
             else:
                 s.append('Data connection closed.')
 
             self.push('211-FTP server status:\r\n')
-            self.push(''.join([' %s\r\n' % item for item in s]))
+            self.push(''.join([f' {item}\r\n' for item in s]))
             self.respond('211 End of status.')
         # return directory LISTing over the command channel
         else:
@@ -2967,16 +3086,8 @@ class FTPHandler(AsyncChat):
                 if isdir:
                     listing = self.run_as_current_user(self.fs.listdir, path)
                     if isinstance(listing, list):
-                        try:
-                            # RFC 959 recommends the listing to be sorted.
-                            listing.sort()
-                        except UnicodeDecodeError:
-                            # (Python 2 only) might happen on filesystem not
-                            # supporting UTF8 meaning os.listdir() returned a
-                            # list of mixed bytes and unicode strings:
-                            # http://goo.gl/6DLHD
-                            # http://bugs.python.org/issue683592
-                            pass
+                        # RFC 959 recommends the listing to be sorted.
+                        listing.sort()
                     iterator = self.fs.format_list(path, listing)
                 else:
                     basedir, filename = os.path.split(path)
@@ -2984,19 +3095,23 @@ class FTPHandler(AsyncChat):
                     iterator = self.fs.format_list(basedir, [filename])
             except (OSError, FilesystemError) as err:
                 why = _strerror(err)
-                self.respond('550 %s.' % why)
+                self.respond(f'550 {why}.')
             else:
-                self.push('213-Status of "%s":\r\n' % line)
+                self.push(f'213-Status of "{line}":\r\n')
                 self.push_with_producer(BufferedIteratorProducer(iterator))
                 self.respond('213 End of status.')
                 return path
 
     def ftp_FEAT(self, line):
         """List all new features supported as defined in RFC-2398."""
-        features = set(['UTF8', 'TVFS'])
-        features.update([feat for feat in
-                         ('EPRT', 'EPSV', 'MDTM', 'MFMT', 'SIZE')
-                         if feat in self.proto_cmds])
+        features = {'TVFS'}
+        if self.encoding.lower() in ("utf8", "utf-8"):
+            features.add('UTF8')
+        features.update([
+            feat
+            for feat in ('EPRT', 'EPSV', 'MDTM', 'MFMT', 'SIZE')
+            if feat in self.proto_cmds
+        ])
         features.update(self._extra_feats)
         if 'MLST' in self.proto_cmds or 'MLSD' in self.proto_cmds:
             facts = ''
@@ -3010,7 +3125,7 @@ class FTPHandler(AsyncChat):
             features.add('REST STREAM')
         features = sorted(features)
         self.push("211-Features supported:\r\n")
-        self.push("".join([" %s\r\n" % x for x in features]))
+        self.push("".join([f" {x}\r\n" for x in features]))
         self.respond('211 End FEAT.')
 
     def ftp_OPTS(self, line):
@@ -3026,13 +3141,14 @@ class FTPHandler(AsyncChat):
                 cmd, arg = line, ''
             # actually the only command able to accept options is MLST
             if cmd.upper() != 'MLST' or 'MLST' not in self.proto_cmds:
-                raise ValueError('Unsupported command "%s"' % cmd)
+                raise ValueError(f'Unsupported command "{cmd}"')
         except ValueError as err:
-            self.respond('501 %s.' % err)
+            self.respond(f'501 {err}.')
         else:
             facts = [x.lower() for x in arg.split(';')]
-            self._current_facts = \
-                [x for x in facts if x in self._available_facts]
+            self._current_facts = [
+                x for x in facts if x in self._available_facts
+            ]
             f = ''.join([x + ';' for x in self._current_facts])
             self.respond('200 MLST OPTS ' + f)
 
@@ -3059,15 +3175,16 @@ class FTPHandler(AsyncChat):
         if line:
             line = line.upper()
             if line in self.proto_cmds:
-                self.respond("214 %s" % self.proto_cmds[line]['help'])
+                self.respond(f"214 {self.proto_cmds[line]['help']}")
             else:
                 self.respond("501 Unrecognized command.")
         else:
             # provide a compact list of recognized commands
             def formatted_help():
                 cmds = []
-                keys = sorted([x for x in self.proto_cmds
-                               if not x.startswith('SITE ')])
+                keys = sorted(
+                    [x for x in self.proto_cmds if not x.startswith('SITE ')]
+                )
                 while keys:
                     elems = tuple(keys[0:8])
                     cmds.append(' %-6s' * len(elems) % elems + '\r\n')
@@ -3102,7 +3219,7 @@ class FTPHandler(AsyncChat):
                 self.run_as_current_user(self.fs.chmod, path, mode)
             except (OSError, FilesystemError) as err:
                 why = _strerror(err)
-                self.respond('550 %s.' % why)
+                self.respond(f'550 {why}.')
             else:
                 self.respond('200 SITE CHMOD successful.')
                 return (path, mode)
@@ -3112,7 +3229,7 @@ class FTPHandler(AsyncChat):
         if line:
             line = line.upper()
             if line in self.proto_cmds:
-                self.respond("214 %s" % self.proto_cmds[line]['help'])
+                self.respond(f"214 {self.proto_cmds[line]['help']}")
             else:
                 self.respond("501 Unrecognized SITE command.")
         else:
@@ -3120,7 +3237,7 @@ class FTPHandler(AsyncChat):
             site_cmds = []
             for cmd in sorted(self.proto_cmds.keys()):
                 if cmd.startswith('SITE '):
-                    site_cmds.append(' %s\r\n' % cmd[5:])
+                    site_cmds.append(f' {cmd[5:]}\r\n')
             self.push(''.join(site_cmds))
             self.respond("214 Help SITE command successful.")
 
@@ -3161,7 +3278,7 @@ class FTPHandler(AsyncChat):
 
 if SSL is not None:
 
-    class SSLConnection(_AsyncChatNewStyle):
+    class SSLConnection:
         """An AsyncChat subclass supporting TLS/SSL."""
 
         _ssl_accepting = False
@@ -3176,9 +3293,11 @@ if SSL is not None:
             self._ssl_want_write = False
 
         def readable(self):
-            return self._ssl_accepting or \
-                self._ssl_want_read or \
-                super().readable()
+            return (
+                self._ssl_accepting
+                or self._ssl_want_read
+                or super().readable()
+            )
 
         def writable(self):
             return self._ssl_want_write or super().writable()
@@ -3191,19 +3310,22 @@ if SSL is not None:
             self._ssl_requested = True
             try:
                 self.socket = SSL.Connection(ssl_context, self.socket)
-            except socket.error as err:
+            except OSError as err:
                 # may happen in case the client connects/disconnects
                 # very quickly
                 debug(
                     "call: secure_connection(); can't secure SSL connection "
-                    "%r; closing" % err, self)
+                    f"{err!r}; closing",
+                    self,
+                )
                 self.close()
             except ValueError:
                 # may happen in case the client connects/disconnects
                 # very quickly
                 if self.socket.fileno() == -1:
                     debug(
-                        "ValueError and fd == -1 on secure_connection()", self)
+                        "ValueError and fd == -1 on secure_connection()", self
+                    )
                     return
                 raise
             else:
@@ -3224,13 +3346,14 @@ if SSL is not None:
 
             if self._ssl_want_read:
                 self.modify_ioloop_events(
-                    self._wanted_io_events | self.ioloop.READ, logdebug=True)
+                    self._wanted_io_events | self.ioloop.READ, logdebug=True
+                )
             elif self._ssl_want_write:
                 self.modify_ioloop_events(
-                    self._wanted_io_events | self.ioloop.WRITE, logdebug=True)
-            else:
-                if prev_row_pending:
-                    self.modify_ioloop_events(self._wanted_io_events)
+                    self._wanted_io_events | self.ioloop.WRITE, logdebug=True
+                )
+            elif prev_row_pending:
+                self.modify_ioloop_events(self._wanted_io_events)
 
         def _do_ssl_handshake(self):
             self._ssl_accepting = True
@@ -3243,10 +3366,11 @@ if SSL is not None:
                 debug("call: _do_ssl_handshake, err: ssl-want-read", inst=self)
             except SSL.WantWriteError:
                 self._ssl_want_write = True
-                debug("call: _do_ssl_handshake, err: ssl-want-write",
-                      inst=self)
+                debug(
+                    "call: _do_ssl_handshake, err: ssl-want-write", inst=self
+                )
             except SSL.SysCallError as err:
-                debug("call: _do_ssl_handshake, err: %r" % err, inst=self)
+                debug(f"call: _do_ssl_handshake, err: {err!r}", inst=self)
                 retval, desc = err.args
                 if (retval == -1 and desc == 'Unexpected EOF') or retval > 0:
                     # Happens when the other side closes the socket before
@@ -3260,7 +3384,7 @@ if SSL is not None:
                 else:
                     raise
             except SSL.Error as err:
-                debug("call: _do_ssl_handshake, err: %r" % err, inst=self)
+                debug(f"call: _do_ssl_handshake, err: {err!r}", inst=self)
                 self.handle_failed_ssl_handshake()
             else:
                 debug("SSL connection established", self)
@@ -3307,7 +3431,7 @@ if SSL is not None:
         def handle_error(self):
             self._error = True
             try:
-                raise
+                raise  # noqa: PLE0704
             except Exception:
                 self.log_exception(self)
             # when facing an unhandled exception in here it's better
@@ -3333,16 +3457,19 @@ if SSL is not None:
                 return 0
             except SSL.ZeroReturnError:
                 debug(
-                    "call: send() -> shutdown(), err: zero-return", inst=self)
+                    "call: send() -> shutdown(), err: zero-return", inst=self
+                )
                 super().handle_close()
                 return 0
             except SSL.SysCallError as err:
-                debug("call: send(), err: %r" % err, inst=self)
+                debug(f"call: send(), err: {err!r}", inst=self)
                 errnum, errstr = err.args
                 if errnum == errno.EWOULDBLOCK:
                     return 0
-                elif errnum in _ERRNOS_DISCONNECTED or \
-                        errstr == 'Unexpected EOF':
+                elif (
+                    errnum in _ERRNOS_DISCONNECTED
+                    or errstr == 'Unexpected EOF'
+                ):
                     super().handle_close()
                     return 0
                 else:
@@ -3360,15 +3487,18 @@ if SSL is not None:
                 self._ssl_want_write = True
                 raise RetryError
             except SSL.ZeroReturnError:
-                debug("call: recv() -> shutdown(), err: zero-return",
-                      inst=self)
+                debug(
+                    "call: recv() -> shutdown(), err: zero-return", inst=self
+                )
                 super().handle_close()
                 return b''
             except SSL.SysCallError as err:
-                debug("call: recv(), err: %r" % err, inst=self)
+                debug(f"call: recv(), err: {err!r}", inst=self)
                 errnum, errstr = err.args
-                if errnum in _ERRNOS_DISCONNECTED or \
-                        errstr == 'Unexpected EOF':
+                if (
+                    errnum in _ERRNOS_DISCONNECTED
+                    or errstr == 'Unexpected EOF'
+                ):
                     super().handle_close()
                     return b''
                 else:
@@ -3386,12 +3516,16 @@ if SSL is not None:
                 # connection has gone away
                 try:
                     os.write(self.socket.fileno(), b'')
-                except (OSError, socket.error) as err:
+                except OSError as err:
                     debug(
-                        "call: _do_ssl_shutdown() -> os.write, err: %r" % err,
-                        inst=self)
-                    if err.errno in (errno.EINTR, errno.EWOULDBLOCK,
-                                     errno.ENOBUFS):
+                        f"call: _do_ssl_shutdown() -> os.write, err: {err!r}",
+                        inst=self,
+                    )
+                    if err.errno in {
+                        errno.EINTR,
+                        errno.EWOULDBLOCK,
+                        errno.ENOBUFS,
+                    }:
                         return
                     elif err.errno in _ERRNOS_DISCONNECTED:
                         return super().close()
@@ -3429,20 +3563,27 @@ if SSL is not None:
             except SSL.ZeroReturnError:
                 debug(
                     "call: _do_ssl_shutdown() -> shutdown(), err: zero-return",
-                    inst=self)
+                    inst=self,
+                )
                 super().close()
             except SSL.SysCallError as err:
-                debug("call: _do_ssl_shutdown() -> shutdown(), err: %r" % err,
-                      inst=self)
+                debug(
+                    f"call: _do_ssl_shutdown() -> shutdown(), err: {err!r}",
+                    inst=self,
+                )
                 errnum, errstr = err.args
-                if errnum in _ERRNOS_DISCONNECTED or \
-                        errstr == 'Unexpected EOF':
+                if (
+                    errnum in _ERRNOS_DISCONNECTED
+                    or errstr == 'Unexpected EOF'
+                ):
                     super().close()
                 else:
                     raise
             except SSL.Error as err:
-                debug("call: _do_ssl_shutdown() -> shutdown(), err: %r" % err,
-                      inst=self)
+                debug(
+                    f"call: _do_ssl_shutdown() -> shutdown(), err: {err!r}",
+                    inst=self,
+                )
                 # see:
                 # https://github.com/giampaolo/pyftpdlib/issues/171
                 # https://bugs.launchpad.net/pyopenssl/+bug/785985
@@ -3450,24 +3591,29 @@ if SSL is not None:
                     pass
                 else:
                     raise
-            except socket.error as err:
-                debug("call: _do_ssl_shutdown() -> shutdown(), err: %r" % err,
-                      inst=self)
+            except OSError as err:
+                debug(
+                    f"call: _do_ssl_shutdown() -> shutdown(), err: {err!r}",
+                    inst=self,
+                )
                 if err.errno in _ERRNOS_DISCONNECTED:
                     super().close()
                 else:
                     raise
             else:
                 if done:
-                    debug("call: _do_ssl_shutdown(), shutdown completed",
-                          inst=self)
+                    debug(
+                        "call: _do_ssl_shutdown(), shutdown completed",
+                        inst=self,
+                    )
                     self._ssl_established = False
                     self._ssl_closing = False
                     self.handle_ssl_shutdown()
                 else:
                     debug(
                         "call: _do_ssl_shutdown(), shutdown not completed yet",
-                        inst=self)
+                        inst=self,
+                    )
 
         def close(self):
             if self._ssl_established and not self._error:
@@ -3535,14 +3681,15 @@ if SSL is not None:
 
          - (int) ssl_protocol:
             the desired SSL protocol version to use. This defaults to
-            PROTOCOL_SSLv23 which will negotiate the highest protocol
-            that both the server and your installation of OpenSSL
-            support.
+            TLS_SERVER_METHOD, which includes TLSv1, TLSv1.1, TLSv1.2
+            and TLSv1.3. The actual protocol version used will be
+            negotiated to the highest version mutually supported by the
+            client and the server.
 
          - (int) ssl_options:
             specific OpenSSL options. These default to:
-            SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3| SSL.OP_NO_COMPRESSION
-            which are all considered insecure features.
+            SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3 | SSL.OP_NO_COMPRESSION
+            ...which are all considered insecure features.
             Can be set to None in order to improve compatibility with
             older (insecure) FTP clients.
 
@@ -3557,7 +3704,8 @@ if SSL is not None:
         tls_data_required = False
         certfile = None
         keyfile = None
-        ssl_protocol = SSL.SSLv23_METHOD
+        # Includes: SSLv3, TLSv1, TLSv1.1, TLSv1.2, TLSv1.3
+        ssl_protocol = SSL.TLS_SERVER_METHOD
         # - SSLv2 is easily broken and is considered harmful and dangerous
         # - SSLv3 has several problems and is now dangerous
         # - Disable compression to prevent CRIME attacks for OpenSSL 1.0+
@@ -3572,16 +3720,28 @@ if SSL is not None:
         proto_cmds = FTPHandler.proto_cmds.copy()
         proto_cmds.update({
             'AUTH': dict(
-                perm=None, auth=False, arg=True,
-                help='Syntax: AUTH <SP> TLS|SSL (set up secure control '
-                     'channel).'),
+                perm=None,
+                auth=False,
+                arg=True,
+                help=(
+                    'Syntax: AUTH <SP> TLS|SSL (set up secure control '
+                    'channel).'
+                ),
+            ),
             'PBSZ': dict(
-                perm=None, auth=False, arg=True,
-                help='Syntax: PBSZ <SP> 0 (negotiate TLS buffer).'),
+                perm=None,
+                auth=False,
+                arg=True,
+                help='Syntax: PBSZ <SP> 0 (negotiate TLS buffer).',
+            ),
             'PROT': dict(
-                perm=None, auth=False, arg=True,
-                help='Syntax: PROT <SP> [C|P] (set up un/secure data '
-                     'channel).'),
+                perm=None,
+                auth=False,
+                arg=True,
+                help=(
+                    'Syntax: PROT <SP> [C|P] (set up un/secure data channel).'
+                ),
+            ),
         })
 
         def __init__(self, conn, server, ioloop=None):
@@ -3635,7 +3795,7 @@ if SSL is not None:
         def close(self):
             SSLConnection.close(self)
             FTPHandler.close(self)
-        
+
         # --- new methods
 
         def handle_failed_ssl_handshake(self):
@@ -3655,11 +3815,12 @@ if SSL is not None:
                 # From RFC-4217: "As the SSL/TLS protocols self-negotiate
                 # their levels, there is no need to distinguish between SSL
                 # and TLS in the application layer".
-                self.respond('234 AUTH %s successful.' % arg)
+                self.respond(f'234 AUTH {arg} successful.')
                 self.secure_connection(self.ssl_context)
             else:
                 self.respond(
-                    "502 Unrecognized encryption type (use TLS or SSL).")
+                    "502 Unrecognized encryption type (use TLS or SSL)."
+                )
 
         def ftp_PBSZ(self, line):
             """Negotiate size of buffer for secure data transfer.
@@ -3668,7 +3829,8 @@ if SSL is not None:
             """
             if not isinstance(self.socket, SSL.Connection):
                 self.respond(
-                    "503 PBSZ not allowed on insecure control connection.")
+                    "503 PBSZ not allowed on insecure control connection."
+                )
             else:
                 self.respond('200 PBSZ=0 successful.')
                 self._pbsz = True
@@ -3678,10 +3840,12 @@ if SSL is not None:
             arg = line.upper()
             if not isinstance(self.socket, SSL.Connection):
                 self.respond(
-                    "503 PROT not allowed on insecure control connection.")
+                    "503 PROT not allowed on insecure control connection."
+                )
             elif not self._pbsz:
                 self.respond(
-                    "503 You must issue the PBSZ command prior to PROT.")
+                    "503 You must issue the PBSZ command prior to PROT."
+                )
             elif arg == 'C':
                 self.respond('200 Protection set to Clear')
                 self._prot = False
@@ -3689,6 +3853,6 @@ if SSL is not None:
                 self.respond('200 Protection set to Private')
                 self._prot = True
             elif arg in ('S', 'E'):
-                self.respond('521 PROT %s unsupported (use C or P).' % arg)
+                self.respond(f'521 PROT {arg} unsupported (use C or P).')
             else:
                 self.respond("502 Unrecognized PROT type (use C or P).")

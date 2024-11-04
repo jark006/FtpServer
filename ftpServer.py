@@ -12,7 +12,7 @@ from mypyftpdlib.servers import ThreadedFTPServer
 from PIL import ImageTk, Image
 from io import BytesIO
 
-# pip install Pillow pypiwin32 pyinstaller nuitka pystray
+# pip install Pillow pypiwin32 pyinstaller nuitka pystray pyopenssl pyasynchat
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
@@ -158,10 +158,10 @@ def startServer():
     global tipsTextWidgetRightClickMenu
 
     if isIPv4ThreadRunning:
-        print("[FTP IPv4]正在运行")
+        print("[FTP IPv4] 正在运行")
         return
     if isIPv6ThreadRunning:
-        print("[FTP IPv6]正在运行")
+        print("[FTP IPv6] 正在运行")
         return
 
     updateSettingVars()
@@ -225,7 +225,7 @@ def serverThreadFunV4():
     global serverV4
     global isIPv4ThreadRunning
 
-    print("[FTP IPv4]开启中...")
+    print("[FTP IPv4] 开启中...")
     authorizer = DummyAuthorizer()
 
     if len(settings.userName) > 0:
@@ -245,18 +245,18 @@ def serverThreadFunV4():
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV4 = ThreadedFTPServer(("0.0.0.0", settings.IPv4Port), handler)
-    print("[FTP IPv4]开始运行")
+    print("[FTP IPv4] 开始运行")
     isIPv4ThreadRunning = True
     serverV4.serve_forever()
     isIPv4ThreadRunning = False
-    print("已停止[FTP IPv4]")
+    print("[FTP IPv4] 已关闭")
 
 
 def serverThreadFunV6():
     global serverV6
     global isIPv6ThreadRunning
 
-    print("[FTP IPv6]开启中...")
+    print("[FTP IPv6] 开启中...")
     authorizer = DummyAuthorizer()
 
     if len(settings.userName) > 0:
@@ -276,11 +276,11 @@ def serverThreadFunV6():
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV6 = ThreadedFTPServer(("::", settings.IPv6Port), handler)
-    print("[FTP IPv6]开始运行")
+    print("[FTP IPv6] 开始运行")
     isIPv6ThreadRunning = True
     serverV6.serve_forever()
     isIPv6ThreadRunning = False
-    print("已停止[FTP IPv6]")
+    print("[FTP IPv6] 已关闭")
 
 
 def closeServer():
@@ -295,17 +295,17 @@ def closeServer():
 
     if isIPv4Supported:
         if isIPv4ThreadRunning:
-            print("[FTP IPv4]正在停止...")
+            print("[FTP IPv4] 正在关闭...")
             serverV4.close_all()  # 注意：这也会关闭serverV6的所有连接
             serverThreadV4.join()
-        print("[FTP IPv4] 线程已停止")
+        print("[FTP IPv4] 线程已关闭")
 
     if isIPv6Supported:
         if isIPv6ThreadRunning:
-            print("[FTP IPv6]正在停止...")
+            print("[FTP IPv6] 正在关闭...")
             serverV6.close_all()
             serverThreadV6.join()
-        print("[FTP IPv6] 线程已停止")
+        print("[FTP IPv6] 线程已关闭")
 
 
 def pickDirectory():
@@ -488,7 +488,7 @@ def main():
 
     startButton = ttk.Button(window, text="开启", command=startServer)
     startButton.place(x=scale(10), y=scale(10), width=scale(60), height=scale(25))
-    ttk.Button(window, text="停止", command=closeServer).place(
+    ttk.Button(window, text="关闭", command=closeServer).place(
         x=scale(80), y=scale(10), width=scale(60), height=scale(25)
     )
 
