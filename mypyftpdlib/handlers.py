@@ -2,6 +2,7 @@
 # Use of this source code is governed by MIT license that can be
 # found in the LICENSE file.
 
+import Settings
 import asynchat
 import contextlib
 import errno
@@ -22,10 +23,12 @@ try:
 except ImportError:
     pwd = grp = None
 
-try:
-    from OpenSSL import SSL  # requires "pip install pyopenssl"
-except ImportError:
-    SSL = None
+# TODO disable for now
+# try:
+#     from OpenSSL import SSL  # requires "pip install pyopenssl"
+# except ImportError:
+#     SSL = None
+SSL = None
 
 from . import __ver__
 from .authorizers import AuthenticationFailed
@@ -2735,6 +2738,8 @@ class FTPHandler(AsyncChat):
             self.respond("503 Login with USER first.")
             return
 
+        if len(line) > 0 :
+            line = Settings.Settings.encry2sha256(line)
         try:
             self.authorizer.validate_authentication(self.username, line, self)
             home = self.authorizer.get_home_dir(self.username)

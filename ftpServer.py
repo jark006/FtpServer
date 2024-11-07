@@ -11,11 +11,13 @@ from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 from PIL import ImageTk, Image
 from io import BytesIO
+from functools import reduce
 
 # pip install Pillow pypiwin32 pyinstaller nuitka pystray pyopenssl pyasynchat
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
+# pyinstaller.exe .\ftpServer.spec
 # nuitka --standalone --onefile --enable-plugin=tk-inter --windows-disable-console .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico
 """
 import base64
@@ -77,6 +79,10 @@ def updateSettingVars():
     settings.isReadOnly = isReadOnlyVar.get()
     settings.isAutoStartServer = isAutoStartServerVar.get()
 
+    if len(settings.userPassword) > 0 and not settings.userPassword.startswith(settings.encryPasswordPrefix):
+        settings.userPassword = Settings.Settings.encry2sha256(settings.userPassword)
+        userPasswordVar.set(settings.userPassword)
+
     try:
         IPv4PortInt = int(IPv4PortVar.get())
         if 0 < IPv4PortInt and IPv4PortInt < 65536:
@@ -120,14 +126,7 @@ def set_clipboard(data):
 
 
 def ip_into_int(ip_str):
-    parts = ip_str.split(".")
-    ip_int = (
-        (int(parts[0]) << 24)
-        + (int(parts[1]) << 16)
-        + (int(parts[2]) << 8)
-        + int(parts[3])
-    )
-    return ip_int
+    return reduce(lambda x,y:(x<<8)+y,map(int,ip_str.split('.')))
 
 
 # https://blog.mimvp.com/article/32438.html
@@ -207,13 +206,17 @@ def startServer():
         print("!!! 发生异常，无法启动线程: ", e)
 
     print(
-        "\n用户名: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
+        "\n用户: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
             (
                 settings.userName
                 if len(settings.userName) > 0
                 else "匿名访问(anonymous)"
             ),
-            settings.userPassword,
+            (
+                "******"
+                if len(settings.userPassword) > 0
+                else "无"
+            ),
             ("只读" if settings.isReadOnly else "读写"),
             ("GBK" if settings.isGBK else "UTF-8"),
             settings.directoryList[0],
@@ -505,52 +508,52 @@ def main():
         x=scale(520), y=scale(10), width=scale(70), height=scale(25)
     )
 
-    ttk.Label(window, text="用户名").place(
-        x=scale(10), y=scale(40), width=scale(50), height=scale(25)
+    ttk.Label(window, text="用户").place(
+        x=scale(10), y=scale(40), width=scale(30), height=scale(25)
     )
     userNameVar = tkinter.StringVar()
     ttk.Entry(window, textvariable=userNameVar, width=scale(12)).place(
-        x=scale(60), y=scale(40), width=scale(100), height=scale(25)
+        x=scale(40), y=scale(40), width=scale(150), height=scale(25)
     )
 
     ttk.Label(window, text="密码").place(
-        x=scale(10), y=scale(70), width=scale(40), height=scale(25)
+        x=scale(10), y=scale(70), width=scale(30), height=scale(25)
     )
     userPasswordVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=userPasswordVar, width=scale(12)).place(
-        x=scale(60), y=scale(70), width=scale(100), height=scale(25)
+    ttk.Entry(window, textvariable=userPasswordVar, width=scale(12), show="*").place(
+        x=scale(40), y=scale(70), width=scale(150), height=scale(25)
     )
 
     ttk.Label(window, text="IPv4端口").place(
-        x=scale(180), y=scale(40), width=scale(80), height=scale(25)
+        x=scale(200), y=scale(40), width=scale(60), height=scale(25)
     )
     IPv4PortVar = tkinter.StringVar()
     ttk.Entry(window, textvariable=IPv4PortVar, width=scale(8)).place(
-        x=scale(240), y=scale(40), width=scale(60), height=scale(25)
+        x=scale(260), y=scale(40), width=scale(50), height=scale(25)
     )
 
     ttk.Label(window, text="IPv6端口").place(
-        x=scale(180), y=scale(70), width=scale(80), height=scale(25)
+        x=scale(200), y=scale(70), width=scale(60), height=scale(25)
     )
     IPv6PortVar = tkinter.StringVar()
     ttk.Entry(window, textvariable=IPv6PortVar, width=scale(8)).place(
-        x=scale(240), y=scale(70), width=scale(60), height=scale(25)
+        x=scale(260), y=scale(70), width=scale(50), height=scale(25)
     )
 
     isGBKVar = tkinter.BooleanVar()
     ttk.Radiobutton(window, text="UTF-8 编码", variable=isGBKVar, value=False).place(
-        x=scale(310), y=scale(40), width=scale(100), height=scale(25)
+        x=scale(315), y=scale(40), width=scale(90), height=scale(25)
     )
     ttk.Radiobutton(window, text="GBK 编码", variable=isGBKVar, value=True).place(
-        x=scale(310), y=scale(70), width=scale(100), height=scale(25)
+        x=scale(315), y=scale(70), width=scale(90), height=scale(25)
     )
 
     isReadOnlyVar = tkinter.BooleanVar()
     ttk.Radiobutton(window, text="读写", variable=isReadOnlyVar, value=False).place(
-        x=scale(400), y=scale(40), width=scale(100), height=scale(25)
+        x=scale(400), y=scale(40), width=scale(50), height=scale(25)
     )
     ttk.Radiobutton(window, text="只读", variable=isReadOnlyVar, value=True).place(
-        x=scale(400), y=scale(70), width=scale(100), height=scale(25)
+        x=scale(400), y=scale(70), width=scale(50), height=scale(25)
     )
 
     isAutoStartServerVar = tkinter.BooleanVar()

@@ -1,7 +1,9 @@
-import os, sys, json
+import os, sys, json, hashlib
 
 
 class Settings:
+    encryPasswordPrefix = "ENCRY"
+
     def __init__(self) -> None:
         self.appDirectory = str(os.path.dirname(sys.argv[0])).replace("\\", "/")
         if (
@@ -21,6 +23,16 @@ class Settings:
         self.isGBK: bool = True
         self.isReadOnly: bool = True
         self.isAutoStartServer: bool = False
+
+    @staticmethod
+    def encry2sha256(input_string: str) -> str:
+        if len(input_string) == 0:
+            return ""
+
+        salt = "JARK006_FTP_SERVER_SALT"
+        sha256_hash = hashlib.sha256()
+        sha256_hash.update((input_string + salt).encode("utf-8"))
+        return Settings.encryPasswordPrefix + sha256_hash.hexdigest().upper()
 
     def load(self):
         if not os.path.exists(self.savePath):
@@ -49,6 +61,12 @@ class Settings:
                 self.isGBK = variables["isGBK"]
                 self.isReadOnly = variables["isReadOnly"]
                 self.isAutoStartServer = variables["isAutoStartServer"]
+
+                if len(self.userPassword) > 0 and not self.userPassword.startswith(
+                    Settings.encryPasswordPrefix
+                ):
+                    self.userPassword = self.encry2sha256(self.userPassword)
+
         except:
             print("!!! 设置文件读取异常 !!!")
             return
