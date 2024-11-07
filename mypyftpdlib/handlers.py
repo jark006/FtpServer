@@ -1601,26 +1601,26 @@ class FTPHandler(AsyncChat):
             if cmd[-4:] in ('ABOR', 'STAT', 'QUIT'):
                 cmd = cmd[-4:]
             else:
-                msg = f'Command "{cmd}" not understood.'
+                msg = f'非法命令 "{cmd}"'
                 self.respond('500 ' + msg)
                 if cmd:
                     self.log_cmd(cmd, arg, 500, msg)
                 return
 
         if not arg and self.proto_cmds[cmd]['arg'] is True:  # NOQA
-            msg = "Syntax error: command needs an argument."
+            msg = "语法错误：命令需要参数。"
             self.respond("501 " + msg)
             self.log_cmd(cmd, "", 501, msg)
             return
         if arg and self.proto_cmds[cmd]['arg'] is False:  # NOQA
-            msg = "Syntax error: command does not accept arguments."
+            msg = "语法错误：命令不接受参数。"
             self.respond("501 " + msg)
             self.log_cmd(cmd, arg, 501, msg)
             return
 
         if not self.authenticated:
             if self.proto_cmds[cmd]['auth'] or (cmd == 'STAT' and arg):
-                msg = "Log in with USER and PASS first."
+                msg = "请使用 用户名和密码 登录再操作。"
                 self.respond("530 " + msg)
                 self.log_cmd(cmd, arg, 530, msg)
             else:
@@ -1646,14 +1646,14 @@ class FTPHandler(AsyncChat):
                         arg = self.fs.ftp2fs(arg or self.fs.cwd)
                 elif cmd == 'STAT':
                     if glob.has_magic(arg):
-                        msg = 'Globbing not supported.'
+                        msg = '不支持通配符。'
                         self.respond('550 ' + msg)
                         self.log_cmd(cmd, arg, 550, msg)
                         return
                     arg = self.fs.ftp2fs(arg or self.fs.cwd)
                 elif cmd == 'SITE CHMOD':
                     if ' ' not in arg:
-                        msg = "Syntax error: command needs two arguments."
+                        msg = "语法错误：命令需要两个参数。"
                         self.respond("501 " + msg)
                         self.log_cmd(cmd, "", 501, msg)
                         return
@@ -1663,7 +1663,7 @@ class FTPHandler(AsyncChat):
                         kwargs = dict(mode=mode)
                 elif cmd == 'MFMT':
                     if ' ' not in arg:
-                        msg = "Syntax error: command needs two arguments."
+                        msg = "语法错误：命令需要两个参数。"
                         self.respond("501 " + msg)
                         self.log_cmd(cmd, "", 501, msg)
                         return
@@ -1677,8 +1677,7 @@ class FTPHandler(AsyncChat):
 
                 if not self.fs.validpath(arg):
                     line = self.fs.fs2ftp(arg)
-                    msg = f"{line!r} points to a path which is outside "
-                    msg += "the user's root directory"
+                    msg = f"{line!r} 非法路径，已超出合法路径范围。"
                     self.respond(f"550 {msg}.")
                     self.log_cmd(cmd, arg, 550, msg)
                     return
@@ -1687,7 +1686,7 @@ class FTPHandler(AsyncChat):
             perm = self.proto_cmds[cmd]['perm']
             if perm is not None and cmd != 'STOU':
                 if not self.authorizer.has_perm(self.username, perm, arg):
-                    msg = "Not enough privileges."
+                    msg = "无权操作。"
                     self.respond("550 " + msg)
                     self.log_cmd(cmd, arg, 550, msg)
                     return
@@ -2017,6 +2016,46 @@ class FTPHandler(AsyncChat):
         "MFMT",
     ]
 
+    log_cmds_translate: dict[str, str] = {
+        "USER": "用户名",
+        "PASS": "密码",
+        "ACCT": "账号",
+        "CWD": "进入目录",
+        "CDUP": "进入上级目录",
+        "QUIT": "退出",
+        "PORT": "主动模式",
+        "PASV": "被动模式",
+        "TYPE": "设置类型",
+        "STRU": "文件结构",
+        "MODE": "传输模式",
+        "RETR": "下载",
+        "STOR": "上传",
+        "APPE": "追加上传",
+        "LIST": "列出目录",
+        "NLST": "简单列出目录",
+        "REIN": "重新初始化",
+        "STOU": "存储唯一文件",
+        "ALLO": "分配空间",
+        "REST": "恢复传输",
+        "RNFR": "重命名文件（源）",
+        "RNTO": "重命名文件（目标）",
+        "ABOR": "中断传输",
+        "DELE": "删除",
+        "RMD": "删除目录",
+        "MKD": "创建目录",
+        "PWD": "当前目录",
+        "SYST": "系统信息",
+        "STAT": "状态信息",
+        "HELP": "帮助",
+        "NOOP": "空操作",
+        "SITE": "站点参数",
+        "XMKD": "创建目录",
+        "XRMD": "删除目录",
+        "XCWD": "进入目录",
+        "SITE CHMOD": "修改文件权限",
+        "MFMT": "修改文件时间戳",
+    }
+
     def log_cmd(self, cmd, arg, respcode, respstr):
         """Log commands and responses in a standardized format.
         This is disabled in case the logging level is set to DEBUG.
@@ -2046,9 +2085,11 @@ class FTPHandler(AsyncChat):
         further commands.
         """
         if not self._log_debug and cmd in self.log_cmds_list:
-            line = f"{cmd.strip()} {arg.strip()} {respcode}"
+            if cmd in self.log_cmds_translate:
+                cmd = self.log_cmds_translate[cmd]
+            line = f"{cmd.strip()} {arg.strip()}"
             if str(respcode)[0] in ('4', '5'):
-                line += f' {respstr!r}'
+                line += f' {respstr}'
             self.log(line)
 
     def log_transfer(self, cmd, filename, receive, completed, elapsed, bytes):
@@ -2093,6 +2134,8 @@ class FTPHandler(AsyncChat):
             else:
                 return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
             
+        if cmd in self.log_cmds_translate:
+            cmd = self.log_cmds_translate[cmd]
         line = f"{cmd} {filename} {"完成" if completed else "失败"} {byte2Str(bytes)} {elapsed2Str(elapsed)}"
         self.log(line)
 
@@ -3785,13 +3828,13 @@ if SSL is not None:
         def process_command(self, cmd, *args, **kwargs):
             if cmd in ('USER', 'PASS'):
                 if self.tls_control_required and not self._ssl_established:
-                    msg = "SSL/TLS required on the control channel."
+                    msg = "控制通道上需要 SSL/TLS。"
                     self.respond("550 " + msg)
                     self.log_cmd(cmd, args[0], 550, msg)
                     return
             elif cmd in ('PASV', 'EPSV', 'PORT', 'EPRT'):
                 if self.tls_data_required and not self._prot:
-                    msg = "SSL/TLS required on the data channel."
+                    msg = "数据通道上需要 SSL/TLS。"
                     self.respond("550 " + msg)
                     self.log_cmd(cmd, args[0], 550, msg)
                     return
