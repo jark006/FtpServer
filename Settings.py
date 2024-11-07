@@ -62,10 +62,12 @@ class Settings:
                 self.isReadOnly = variables["isReadOnly"]
                 self.isAutoStartServer = variables["isAutoStartServer"]
 
-                if len(self.userPassword) > 0 and not self.userPassword.startswith(
-                    Settings.encryPasswordPrefix
-                ):
-                    self.userPassword = self.encry2sha256(self.userPassword)
+            # 旧版(v1.12及以下) 存储的是明文密码
+            if len(self.userPassword) > 0 and not self.userPassword.startswith(
+                Settings.encryPasswordPrefix
+            ):
+                self.userPassword = self.encry2sha256(self.userPassword)
+                self.save()
 
         except:
             print("!!! 设置文件读取异常 !!!")
