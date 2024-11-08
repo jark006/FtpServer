@@ -43,8 +43,7 @@ class Settings:
                 variables = json.load(file)
 
             if "rootDirectory" in variables:  # old version: v1.11 and lower
-                self.directoryList.clear()
-                self.directoryList.append(variables["rootDirectory"])
+                self.directoryList = [variables["rootDirectory"]]
                 self.userName = variables["userName"]
                 self.userPassword = variables["userPassword"]
                 self.IPv4Port = int(variables["ipv4Port"])  # 旧版是小写 "ip"
@@ -62,6 +61,34 @@ class Settings:
                 self.isReadOnly = variables["isReadOnly"]
                 self.isAutoStartServer = variables["isAutoStartServer"]
 
+            # 检查变量类型
+            if not type(self.directoryList) is list:
+                self.directoryList = [self.appDirectory]
+                print(f"directoryList 类型错误，已恢复默认：[{self.appDirectory}]")
+            if not type(self.userName) is str:
+                self.userName = "JARK006"
+                print(f"userName 类型错误，已恢复默认：{self.userName}")
+            if not type(self.userPassword) is str:
+                self.userPassword = "123456"
+                print(f"userPassword 类型错误，已恢复默认：{self.userPassword}")
+            if not type(self.IPv4Port) is int:
+                self.IPv4Port = 21
+                print(f"IPv4Port 类型错误，已恢复默认：{self.IPv4Port}")
+            if not type(self.IPv6Port) is int:
+                self.IPv6Port = 21
+                print(f"IPv6Port 类型错误，已恢复默认：{self.IPv6Port}")
+            if not type(self.isGBK) is bool:
+                self.isGBK = True
+                print(f"isGBK 类型错误，已恢复默认：{self.isGBK}")
+            if not type(self.isReadOnly) is bool:
+                self.isReadOnly = True
+                print(f"isReadOnly 类型错误，已恢复默认：{self.isReadOnly}")
+            if not type(self.isAutoStartServer) is bool:
+                self.isAutoStartServer = False
+                print(
+                    f"isAutoStartServer 类型错误，已恢复默认：{self.isAutoStartServer}"
+                )
+
             # 旧版(v1.12及以下) 存储的是明文密码
             if len(self.userPassword) > 0 and not self.userPassword.startswith(
                 Settings.encryPasswordPrefix
@@ -69,12 +96,16 @@ class Settings:
                 self.userPassword = self.encry2sha256(self.userPassword)
                 self.save()
 
-        except:
-            print("!!! 设置文件读取异常 !!!")
+        except Exception as e:
+            print(f"设置文件读取异常: {self.savePath}\n{e}")
             return
 
     def save(self):
         """保存前确保调用 updateSettingVars() 或其他函数进行参数检查"""
+
+        while len(self.directoryList) > 20:
+            self.directoryList.pop()
+
         variables: dict[str, any] = {
             "directoryList": self.directoryList,
             "userName": self.userName,

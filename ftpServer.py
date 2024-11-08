@@ -30,11 +30,11 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.13"
+appVersion = "v1.14"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
-tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。以下为本机所有IP地址，右键可复制。\n"
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。以下为本机所有IP地址(含所有物理网卡/虚拟网卡)，右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning: bool = True
@@ -66,7 +66,7 @@ def updateSettingVars():
         directory = directoryCombobox.get()
         if directory in settings.directoryList:
             settings.directoryList.remove(directory)
-            settings.directoryList.insert(0, directory)
+        settings.directoryList.insert(0, directory)
     else:
         settings.directoryList = [settings.appDirectory]
 
@@ -74,14 +74,18 @@ def updateSettingVars():
     directoryCombobox.current(0)
 
     settings.userName = userNameVar.get()
-    settings.userPassword = userPasswordVar.get()
     settings.isGBK = isGBKVar.get()
     settings.isReadOnly = isReadOnlyVar.get()
     settings.isAutoStartServer = isAutoStartServerVar.get()
 
-    if len(settings.userPassword) > 0 and not settings.userPassword.startswith(settings.encryPasswordPrefix):
-        settings.userPassword = Settings.Settings.encry2sha256(settings.userPassword)
-        userPasswordVar.set(settings.userPassword)
+    passwordTmp = userPasswordVar.get()
+    if len(passwordTmp) == 0:
+        settings.userPassword = ""
+    elif passwordTmp == "******":
+        pass
+    else:
+        settings.userPassword = Settings.Settings.encry2sha256(passwordTmp)
+        userPasswordVar.set("******")
 
     try:
         IPv4PortInt = int(IPv4PortVar.get())
@@ -325,8 +329,6 @@ def pickDirectory():
             settings.directoryList.insert(0, directory)
         else:
             settings.directoryList.insert(0, directory)
-            while len(settings.directoryList) > 20:
-                settings.directoryList.pop()
 
         directoryCombobox["value"] = tuple(settings.directoryList)
         directoryCombobox.current(0)
@@ -499,7 +501,7 @@ def main():
         x=scale(150), y=scale(10), width=scale(70), height=scale(25)
     )
 
-    directoryCombobox = ttk.Combobox(window, state="readonly")
+    directoryCombobox = ttk.Combobox(window)
     directoryCombobox.place(
         x=scale(230), y=scale(10), width=scale(280), height=scale(25)
     )
@@ -596,7 +598,7 @@ def main():
     directoryCombobox.current(0)
 
     userNameVar.set(settings.userName)
-    userPasswordVar.set(settings.userPassword)
+    userPasswordVar.set("******" if len(settings.userPassword) > 0 else "")
     IPv4PortVar.set(str(settings.IPv4Port))
     IPv6PortVar.set(str(settings.IPv6Port))
     isGBKVar.set(settings.isGBK)
