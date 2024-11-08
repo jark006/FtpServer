@@ -5,7 +5,7 @@ import win32clipboard
 import win32con
 import tkinter
 
-from tkinter import ttk, scrolledtext, filedialog
+from tkinter import ttk, scrolledtext, filedialog, messagebox
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
@@ -94,9 +94,9 @@ def updateSettingVars():
         else:
             raise
     except:
-        print(
-            f"\n\n!!! 当前 IPv4 设置端口：{IPv4PortVar.get()} 错误，正常范围: 1 ~ 65535，已重设为: 21\n\n"
-        )
+        tips: str = f"当前 IPv4 端口值：[ {IPv4PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        messagebox.showwarning("IPv4 端口值异常", tips)
+        print(tips)
         settings.IPv4Port = 21
         IPv4PortVar.set("21")
 
@@ -107,9 +107,9 @@ def updateSettingVars():
         else:
             raise
     except:
-        print(
-            f"\n\n!!! 当前 IPv6 设置端口：{IPv6PortVar.get()} 错误，正常范围: 1 ~ 65535，已重设为: 21\n\n"
-        )
+        tips: str = f"当前 IPv6 端口值：[ {IPv6PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        messagebox.showwarning("IPv6 端口值异常", tips)
+        print(tips)
         settings.IPv6Port = 21
         IPv6PortVar.set("21")
 
@@ -170,19 +170,23 @@ def startServer():
     updateSettingVars()
 
     if not os.path.exists(settings.directoryList[0]):
-        print(
-            f"路径: [ {settings.directoryList[0]} ]异常！请检查路径是否正确或者有没有读取权限。"
-        )
+        tips: str = f"路径: [ {settings.directoryList[0]} ]异常！请检查路径是否正确或者有没有读取权限。"
+        messagebox.showerror("路径异常", tips)
+        print(tips)
         return
 
     if len(settings.userName) > 0 and len(settings.userPassword) == 0:
-        print("\n\n!!! 请设置密码再启动服务 !!!")
+        tips: str = "!!! 请设置密码再启动服务 !!!"
+        messagebox.showerror("密码异常", tips)
+        print(tips)
         return
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
     if len(ftpUrlList) == 0:
-        print("\n\n!!! 本机没有检测到网络IP，请检查网络连接，或稍后重试 !!!")
+        tips: str = "!!! 本机没有检测到网络IP，请检查网络连接，或稍后重试 !!!"
+        messagebox.showerror("网络异常", tips)
+        print(tips)
         return
 
     settings.save()
@@ -207,7 +211,10 @@ def startServer():
             serverThreadV6 = threading.Thread(target=serverThreadFunV6)
             serverThreadV6.start()
     except Exception as e:
-        print("!!! 发生异常，无法启动线程: ", e)
+        tips: str = f"!!! 发生异常，无法启动线程 !!!\n{e}"
+        messagebox.showerror("启动异常", tips)
+        print(tips)
+        return
 
     print(
         "\n用户: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
@@ -232,7 +239,6 @@ def serverThreadFunV4():
     global serverV4
     global isIPv4ThreadRunning
 
-    print("[FTP IPv4] 开启中...")
     authorizer = DummyAuthorizer()
 
     if len(settings.userName) > 0:
@@ -263,7 +269,6 @@ def serverThreadFunV6():
     global serverV6
     global isIPv6ThreadRunning
 
-    print("[FTP IPv6] 开启中...")
     authorizer = DummyAuthorizer()
 
     if len(settings.userName) > 0:
@@ -333,7 +338,9 @@ def pickDirectory():
         directoryCombobox["value"] = tuple(settings.directoryList)
         directoryCombobox.current(0)
     else:
-        print(f"路径不存在或无访问权限：{directory}")
+        tips: str = f"路径不存在或无访问权限：[ {directory} ]"
+        messagebox.showerror("路径异常", tips)
+        print(tips)
 
 
 def openGithub():
