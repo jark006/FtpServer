@@ -35,7 +35,7 @@ appVersion = "v1.15"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
-tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。以下为本机所有IP地址(含所有物理网卡/虚拟网卡)，右键可复制。\n"
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。若需多用户配置，请点击右上角“关于”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡)，右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning: bool = True
