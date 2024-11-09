@@ -1,6 +1,7 @@
 import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, pystray
 
 import Settings
+import UserList
 import win32clipboard
 import win32con
 import tkinter
@@ -30,7 +31,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.14"
+appVersion = "v1.15"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
@@ -46,8 +47,6 @@ isIPv4Supported: bool = False
 isIPv6Supported: bool = False
 isIPv4ThreadRunning: bool = False
 isIPv6ThreadRunning: bool = False
-
-settings = Settings.Settings()
 
 
 def updateSettingVars():
@@ -94,7 +93,9 @@ def updateSettingVars():
         else:
             raise
     except:
-        tips: str = f"当前 IPv4 端口值：[ {IPv4PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        tips: str = (
+            f"当前 IPv4 端口值：[ {IPv4PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        )
         messagebox.showwarning("IPv4 端口值异常", tips)
         print(tips)
         settings.IPv4Port = 21
@@ -107,7 +108,9 @@ def updateSettingVars():
         else:
             raise
     except:
-        tips: str = f"当前 IPv6 端口值：[ {IPv6PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        tips: str = (
+            f"当前 IPv6 端口值：[ {IPv6PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+        )
         messagebox.showwarning("IPv6 端口值异常", tips)
         print(tips)
         settings.IPv6Port = 21
@@ -130,7 +133,7 @@ def set_clipboard(data):
 
 
 def ip_into_int(ip_str):
-    return reduce(lambda x,y:(x<<8)+y,map(int,ip_str.split('.')))
+    return reduce(lambda x, y: (x << 8) + y, map(int, ip_str.split(".")))
 
 
 # https://blog.mimvp.com/article/32438.html
@@ -151,6 +154,8 @@ def is_internal_ip(ip_str):
 
 
 def startServer():
+    global settings
+    global userList
     global serverThreadV4
     global serverThreadV6
     global isIPv4Supported
@@ -170,16 +175,19 @@ def startServer():
     updateSettingVars()
 
     if not os.path.exists(settings.directoryList[0]):
-        tips: str = f"路径: [ {settings.directoryList[0]} ]异常！请检查路径是否正确或者有没有读取权限。"
+        tips: str = (
+            f"路径: [ {settings.directoryList[0]} ]异常！请检查路径是否正确或者有没有读取权限。"
+        )
         messagebox.showerror("路径异常", tips)
         print(tips)
         return
 
-    if len(settings.userName) > 0 and len(settings.userPassword) == 0:
-        tips: str = "!!! 请设置密码再启动服务 !!!"
-        messagebox.showerror("密码异常", tips)
-        print(tips)
-        return
+    if userList.isEmpty():
+        if len(settings.userName) > 0 and len(settings.userPassword) == 0:
+            tips: str = "!!! 请设置密码再启动服务 !!!"
+            messagebox.showerror("密码异常", tips)
+            print(tips)
+            return
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
@@ -216,23 +224,22 @@ def startServer():
         print(tips)
         return
 
-    print(
-        "\n用户: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
-            (
-                settings.userName
-                if len(settings.userName) > 0
-                else "匿名访问(anonymous)"
-            ),
-            (
-                "******"
-                if len(settings.userPassword) > 0
-                else "无"
-            ),
-            ("只读" if settings.isReadOnly else "读写"),
-            ("GBK" if settings.isGBK else "UTF-8"),
-            settings.directoryList[0],
+    if userList.isEmpty():
+        print(
+            "\n用户: {}\n密码: {}\n权限: {}\n编码: {}\n目录: {}\n".format(
+                (
+                    settings.userName
+                    if len(settings.userName) > 0
+                    else "匿名访问(anonymous)"
+                ),
+                ("******" if len(settings.userPassword) > 0 else "无"),
+                ("只读" if settings.isReadOnly else "读写"),
+                ("GBK" if settings.isGBK else "UTF-8"),
+                settings.directoryList[0],
+            )
         )
-    )
+    else:
+        userList.print()
 
 
 def serverThreadFunV4():
@@ -241,18 +248,27 @@ def serverThreadFunV4():
 
     authorizer = DummyAuthorizer()
 
-    if len(settings.userName) > 0:
-        authorizer.add_user(
-            settings.userName,
-            settings.userPassword,
-            settings.directoryList[0],
-            perm=permReadOnly if settings.isReadOnly else permReadWrite,
-        )
+    if userList.isEmpty():
+        if len(settings.userName) > 0:
+            authorizer.add_user(
+                settings.userName,
+                settings.userPassword,
+                settings.directoryList[0],
+                perm=permReadOnly if settings.isReadOnly else permReadWrite,
+            )
+        else:
+            authorizer.add_anonymous(
+                settings.directoryList[0],
+                perm=permReadOnly if settings.isReadOnly else permReadWrite,
+            )
     else:
-        authorizer.add_anonymous(
-            settings.directoryList[0],
-            perm=permReadOnly if settings.isReadOnly else permReadWrite,
-        )
+        for userItem in userList.userList:
+            authorizer.add_user(
+                userItem.userName,
+                userItem.password,
+                userItem.path,
+                perm=userItem.perm,
+            )
 
     handler = FTPHandler
     handler.authorizer = authorizer
@@ -271,18 +287,27 @@ def serverThreadFunV6():
 
     authorizer = DummyAuthorizer()
 
-    if len(settings.userName) > 0:
-        authorizer.add_user(
-            settings.userName,
-            settings.userPassword,
-            settings.directoryList[0],
-            perm=permReadOnly if settings.isReadOnly else permReadWrite,
-        )
+    if userList.isEmpty():
+        if len(settings.userName) > 0:
+            authorizer.add_user(
+                settings.userName,
+                settings.userPassword,
+                settings.directoryList[0],
+                perm=permReadOnly if settings.isReadOnly else permReadWrite,
+            )
+        else:
+            authorizer.add_anonymous(
+                settings.directoryList[0],
+                perm=permReadOnly if settings.isReadOnly else permReadWrite,
+            )
     else:
-        authorizer.add_anonymous(
-            settings.directoryList[0],
-            perm=permReadOnly if settings.isReadOnly else permReadWrite,
-        )
+        for userItem in userList.userList:
+            authorizer.add_user(
+                userItem.userName,
+                userItem.password,
+                userItem.path,
+                perm=userItem.perm,
+            )
 
     handler = FTPHandler
     handler.authorizer = authorizer
@@ -448,7 +473,8 @@ def getTipsAndUrlList():
 
 
 def main():
-
+    global settings
+    global userList
     global window
     global loggingWidget
     global logThread
@@ -473,18 +499,16 @@ def main():
         return int(n * ScaleFactor / 100)
 
     mystd = myStdout()  # 实例化重定向类
-
-    settings.load()
+    logThread = threading.Thread(target=logThreadFun)
+    logThread.start()
 
     strayMenu = (
         pystray.MenuItem("显示", show_window, default=True),
         pystray.MenuItem("退出", handleExit),
     )
     strayImage = Image.open(BytesIO(base64.b64decode(iconStr)))
-    strayIcon = pystray.Icon("icon", strayImage, "FTP服务器", strayMenu)
-
-    logThread = threading.Thread(target=logThreadFun)
-    logThread.start()
+    strayIcon = pystray.Icon("icon", strayImage, windowsTitle, strayMenu)
+    threading.Thread(target=strayIcon.run, daemon=True).start()
 
     window = tkinter.Tk()  # 实例化tk对象
     window.title(windowsTitle)
@@ -521,7 +545,8 @@ def main():
         x=scale(10), y=scale(40), width=scale(30), height=scale(25)
     )
     userNameVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=userNameVar, width=scale(12)).place(
+    userNameEntry = ttk.Entry(window, textvariable=userNameVar, width=scale(12))
+    userNameEntry.place(
         x=scale(40), y=scale(40), width=scale(150), height=scale(25)
     )
 
@@ -529,7 +554,8 @@ def main():
         x=scale(10), y=scale(70), width=scale(30), height=scale(25)
     )
     userPasswordVar = tkinter.StringVar()
-    ttk.Entry(window, textvariable=userPasswordVar, width=scale(12), show="*").place(
+    userPasswordEntry = ttk.Entry(window, textvariable=userPasswordVar, width=scale(12), show="*")
+    userPasswordEntry.place(
         x=scale(40), y=scale(70), width=scale(150), height=scale(25)
     )
 
@@ -574,12 +600,37 @@ def main():
         offvalue=False,
     ).place(x=scale(460), y=scale(40), width=scale(160), height=scale(50))
 
-    tipsStr, ftpUrlList = getTipsAndUrlList()
-
     tipsTextWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
+    tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
+
+    loggingWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
+    loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
+    loggingWidget.configure(state="disable")
+
+    # 设置程序缩放
+    window.tk.call("tk", "scaling", ScaleFactor / 75)
+
+    settings = Settings.Settings()
+    userList = UserList.UserList()
+    if len(userList.userList) > 0:
+        userList.print()
+        userNameEntry.configure(state="disable")
+        userPasswordEntry.configure(state="disable")
+
+    directoryCombobox["value"] = tuple(settings.directoryList)
+    directoryCombobox.current(0)
+
+    userNameVar.set(settings.userName)
+    userPasswordVar.set("******" if len(settings.userPassword) > 0 else "")
+    IPv4PortVar.set(str(settings.IPv4Port))
+    IPv6PortVar.set(str(settings.IPv6Port))
+    isGBKVar.set(settings.isGBK)
+    isReadOnlyVar.set(settings.isReadOnly)
+    isAutoStartServerVar.set(settings.isAutoStartServer)
+
+    tipsStr, ftpUrlList = getTipsAndUrlList()
     tipsTextWidget.insert(tkinter.INSERT, tipsStr)
     tipsTextWidget.configure(state="disable")
-    tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     tipsTextWidgetRightClickMenu = tkinter.Menu(window, tearoff=False)
     for url in ftpUrlList:
@@ -593,26 +644,6 @@ def main():
         )  # post在指定的位置显示弹出菜单
 
     tipsTextWidget.bind("<Button-3>", popup)  # 绑定鼠标右键,执行popup函数
-
-    loggingWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
-    loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
-    loggingWidget.configure(state="disable")
-
-    # 设置程序缩放
-    window.tk.call("tk", "scaling", ScaleFactor / 75)
-
-    directoryCombobox["value"] = tuple(settings.directoryList)
-    directoryCombobox.current(0)
-
-    userNameVar.set(settings.userName)
-    userPasswordVar.set("******" if len(settings.userPassword) > 0 else "")
-    IPv4PortVar.set(str(settings.IPv4Port))
-    IPv6PortVar.set(str(settings.IPv6Port))
-    isGBKVar.set(settings.isGBK)
-    isReadOnlyVar.set(settings.isReadOnly)
-    isAutoStartServerVar.set(settings.isAutoStartServer)
-
-    threading.Thread(target=strayIcon.run, daemon=True).start()
 
     if settings.isAutoStartServer:
         startButton.invoke()

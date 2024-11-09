@@ -23,6 +23,7 @@ class Settings:
         self.isGBK: bool = True
         self.isReadOnly: bool = True
         self.isAutoStartServer: bool = False
+        self.load()
 
     @staticmethod
     def encry2sha256(input_string: str) -> str:
