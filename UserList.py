@@ -68,6 +68,9 @@ class UserList:
             return input
 
     def load(self):
+        self.userList.clear()
+        self.userNameSet.clear()
+
         if not os.path.exists(self.savePath):
             return
 
@@ -121,11 +124,12 @@ class UserList:
         if len(self.userList) == 0:
             print("用户列表空白")
         else:
-            print(f"\n主页面的用户/密码设置将会忽略，现将使用以下{len(self.userList)}条用户配置:")
+            print(f"主页面的用户/密码设置将会忽略，现将使用以下{len(self.userList)}条用户配置:")
             for userItem in self.userList:
                 print(
                     f"[{userItem.userName}] [******] [{self.permRevert(userItem.perm)}] [{userItem.path}]"
                 )
+            print('')
 
     def isEmpty(self) -> bool:
         return len(self.userList) == 0

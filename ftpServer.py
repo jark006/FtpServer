@@ -34,11 +34,11 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.16"
+appVersion = "v1.17"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
-tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式，再重启服务。请设置完后再开启服务。若需多用户配置，请点击右上角“关于”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡)，右键可复制。\n"
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning: bool = True
@@ -53,6 +53,85 @@ isIPv6ThreadRunning: bool = False
 
 certFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.crt")
 keyFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.key")
+
+def showHelp():
+    global window
+    global icon_img
+    helpTips = """以下是 安全加密连接FTPS 和 多用户配置 说明, 普通用户一般不需要。
+
+==== FTPS 配置 ====
+
+在 "Linux" 或 "MinGW64" 终端使用 "openssl" (命令如下)生成SSL证书文件, "不要重命名"文件为其他名称。
+直接将其放到程序所在目录, 开启服务时若存在这两个文件, 则自动启用加密连接 "FTPS [TLS/SSL显式加密, TLSv1.3]"
+推荐使用开源软件 "WinSCP" 作为FTP客户端, 对FTPS支持比较好。
+
+# 生成 ftpServer.key 和 ftpServer.crt 有效期100年, 需填入一些简单信息（地区/名字/Email等）
+
+openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
+
+
+==== 多用户配置 ====
+
+在主程序所在目录新建文件 "FtpServerUserList.csv" , 使用 "Excel"或文本编辑器(需熟悉csv文件格式)编辑, 一行一个配置: 
+第一列: 用户名, 限定英文大小写/数字。
+第二列: 密码, 限定英文大小写/数字/符号。
+第三列: 权限, 详细配置如下。
+第四列: 根目录路径。
+
+详细权限配置：
+使用 "readonly" 或 "只读" (需保证文本格式为UTF-8) 设置 "只读权限"。
+使用 "readwrite" 或 "读写" 设置 "读写权限"。
+使用 "自定义" 权限设置, 从以下权限挑选自行组合(注意大小写): 
+
+参考链接: https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
+
+读取权限: 
+ "e" = 更改目录 (CWD 命令)
+ "l" = 列出文件 (LIST、NLST、STAT、MLSD、MLST、SIZE、MDTM 命令)
+ "r" = 从服务器检索文件 (RETR 命令)
+
+写入权限: 
+ "a" = 将数据附加到现有文件 (APPE 命令)
+ "d" = 删除文件或目录 (DELE、RMD 命令)
+ "f" = 重命名文件或目录 (RNFR、RNTO 命令)
+ "m" = 创建目录 (MKD 命令)
+ "w" = 将文件存储到服务器 (STOR、STOU 命令)
+ "M" = 更改文件模式 (SITE CHMOD 命令)
+ "T" = 更新文件上次修改时间 (MFMT 命令)
+    
+
+例如:
+| JARK006   | 123456 | readonly  | D:\\Downloads |
+| JARK007   | 456789 | readwrite | D:\\Data      |
+| JARK008   | abc123 | 只读      | D:\\FtpRoot   |
+| JARK009   | abc456 | elr       | D:\\FtpRoot   |
+| anonymous |        | elr       | D:\\FtpRoot   |
+| ...       |        |           |              |
+注: anonymous 是匿名用户, 允许不设密码, 其他用户必须设置密码。
+
+其他:
+1. 若读取到有效配置, 则自动 "禁用"主页面的用户/密码设置。
+2. 若临时不需多用户配置, 可将文件重命名为其他名称。
+3. 若配置文件存在 "中文汉字", 需确保文本为 "UTF-8" 格式。
+4. 密码不要出现英文逗号 "," 字符, 以免和csv文本格式冲突。
+"""
+
+    helpWindows = tkinter.Toplevel(window)
+    helpWindows.title("帮助")
+    helpWindows.tk.call("wm", "iconphoto", helpWindows._w, icon_img)
+    helpTextWidget = scrolledtext.ScrolledText(helpWindows, bg="#dddddd", wrap=tkinter.CHAR)
+    helpTextWidget.insert(tkinter.INSERT, helpTips)
+    helpTextWidget.configure(state="disable")
+    helpTextWidget.pack()
+
+    def copyCallback(event=None):
+        helpTextWidget.event_generate('<<Copy>>')
+    def popup(event: tkinter.Event):
+        menu.post(event.x_root, event.y_root)
+
+    menu = tkinter.Menu(window, tearoff=False)
+    menu.add_command(label="复制", command=copyCallback)
+    helpTextWidget.bind("<Button-3>", popup)
 
 def updateSettingVars():
     global settings
@@ -99,7 +178,7 @@ def updateSettingVars():
             raise
     except:
         tips: str = (
-            f"当前 IPv4 端口值：[ {IPv4PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+            f"当前 IPv4 端口值: [ {IPv4PortVar.get()} ] 异常, 正常范围: 1 ~ 65535, 已重设为: 21"
         )
         messagebox.showwarning("IPv4 端口值异常", tips)
         print(tips)
@@ -114,7 +193,7 @@ def updateSettingVars():
             raise
     except:
         tips: str = (
-            f"当前 IPv6 端口值：[ {IPv6PortVar.get()} ] 异常，正常范围: 1 ~ 65535，已重设为: 21"
+            f"当前 IPv6 端口值: [ {IPv6PortVar.get()} ] 异常, 正常范围: 1 ~ 65535, 已重设为: 21"
         )
         messagebox.showwarning("IPv6 端口值异常", tips)
         print(tips)
@@ -161,6 +240,8 @@ def is_internal_ip(ip_str):
 def startServer():
     global settings
     global userList
+    global userNameEntry
+    global userPasswordEntry
     global serverThreadV4
     global serverThreadV6
     global isIPv4Supported
@@ -187,17 +268,23 @@ def startServer():
         print(tips)
         return
 
+    userList.load()
     if userList.isEmpty():
+        userNameEntry.configure(state="normal")
+        userPasswordEntry.configure(state="normal")
         if len(settings.userName) > 0 and len(settings.userPassword) == 0:
             tips: str = "!!! 请设置密码再启动服务 !!!"
             messagebox.showerror("密码异常", tips)
             print(tips)
             return
+    else:
+        userNameEntry.configure(state="disable")
+        userPasswordEntry.configure(state="disable")
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
     if len(ftpUrlList) == 0:
-        tips: str = "!!! 本机没有检测到网络IP，请检查网络连接，或稍后重试 !!!"
+        tips: str = "!!! 本机没有检测到网络IP, 请检查网络连接, 或稍后重试 !!!"
         messagebox.showerror("网络异常", tips)
         print(tips)
         return
@@ -224,7 +311,7 @@ def startServer():
             serverThreadV6 = threading.Thread(target=serverThreadFunV6)
             serverThreadV6.start()
     except Exception as e:
-        tips: str = f"!!! 发生异常，无法启动线程 !!!\n{e}"
+        tips: str = f"!!! 发生异常, 无法启动线程 !!!\n{e}"
         messagebox.showerror("启动异常", tips)
         print(tips)
         return
@@ -245,6 +332,7 @@ def startServer():
         )
     else:
         userList.print()
+        print("编码: {}\n".format("GBK" if settings.isGBK else "UTF-8"))
 
 
 def serverThreadFunV4():
@@ -283,7 +371,7 @@ def serverThreadFunV4():
         handler.keyfile = keyFilePath
         handler.tls_control_required = True
         handler.tls_data_required = True
-        print("[FTP IPv4] 已加载 SSL 证书文件，默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+        print("[FTP IPv4] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
     else:
         handler = FTPHandler
 
@@ -334,7 +422,7 @@ def serverThreadFunV6():
         handler.keyfile = keyFilePath
         handler.tls_control_required = True
         handler.tls_data_required = True
-        print("[FTP IPv6] 已加载 SSL 证书文件，默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+        print("[FTP IPv6] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
     else:
         handler = FTPHandler
 
@@ -361,7 +449,7 @@ def closeServer():
     if isIPv4Supported:
         if isIPv4ThreadRunning:
             print("[FTP IPv4] 正在关闭...")
-            serverV4.close_all()  # 注意：这也会关闭serverV6的所有连接
+            serverV4.close_all()  # 注意: 这也会关闭serverV6的所有连接
             serverThreadV4.join()
         print("[FTP IPv4] 线程已关闭")
 
@@ -391,7 +479,7 @@ def pickDirectory():
         directoryCombobox["value"] = tuple(settings.directoryList)
         directoryCombobox.current(0)
     else:
-        tips: str = f"路径不存在或无访问权限：[ {directory} ]"
+        tips: str = f"路径不存在或无访问权限: [ {directory} ]"
         messagebox.showerror("路径异常", tips)
         print(tips)
 
@@ -501,6 +589,7 @@ def getTipsAndUrlList():
 
 
 def main():
+    global icon_img
     global settings
     global userList
     global window
@@ -509,6 +598,8 @@ def main():
     global tipsTextWidget
     global tipsTextWidgetRightClickMenu
     global directoryCombobox
+    global userNameEntry
+    global userPasswordEntry
 
     global userNameVar
     global userPasswordVar
@@ -562,11 +653,15 @@ def main():
 
     directoryCombobox = ttk.Combobox(window)
     directoryCombobox.place(
-        x=scale(230), y=scale(10), width=scale(280), height=scale(25)
+        x=scale(230), y=scale(10), width=scale(250), height=scale(25)
     )
 
-    ttk.Button(window, text="关于/更新", command=openGithub).place(
-        x=scale(520), y=scale(10), width=scale(70), height=scale(25)
+    ttk.Button(window, text="帮助", command=showHelp).place(
+        x=scale(485), y=scale(10), width=scale(50), height=scale(25)
+    )
+
+    ttk.Button(window, text="关于", command=openGithub).place(
+        x=scale(540), y=scale(10), width=scale(50), height=scale(25)
     )
 
     ttk.Label(window, text="用户").place(
@@ -640,7 +735,7 @@ def main():
 
     settings = Settings.Settings()
     userList = UserList.UserList()
-    if len(userList.userList) > 0:
+    if not userList.isEmpty() :
         userList.print()
         userNameEntry.configure(state="disable")
         userPasswordEntry.configure(state="disable")
