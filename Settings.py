@@ -13,7 +13,7 @@ class Settings:
         ):
             self.appDirectory = self.appDirectory[0].upper() + self.appDirectory[1:]
 
-        self.savePath = os.path.join(self.appDirectory, "FtpServer.json")
+        self.savePath = os.path.join(self.appDirectory, "ftpServer.json")
 
         self.directoryList: list[str] = [self.appDirectory]
         self.userName: str = "JARK006"

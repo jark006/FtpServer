@@ -23,12 +23,11 @@ try:
 except ImportError:
     pwd = grp = None
 
-# TODO disable for now
 # try:
 #     from OpenSSL import SSL  # requires "pip install pyopenssl"
 # except ImportError:
 #     SSL = None
-SSL = None
+from OpenSSL import SSL
 
 from . import __ver__
 from .authorizers import AuthenticationFailed

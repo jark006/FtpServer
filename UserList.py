@@ -85,7 +85,6 @@ class UserList:
                 if (
                     len(item[0].strip()) > 0
                     and len(item[1].strip()) > 0
-                    and len(item[2].strip()) > 0
                     and len(item[3].strip()) > 0
                 ):
                     if item[0].strip() in self.userNameSet:
@@ -95,6 +94,10 @@ class UserList:
                     elif not os.path.exists(item[3].strip()):
                         print(
                             f"该用户名条目 [{item[0].strip()}] 的路径不存在或无访问权限 [{item[3].strip()}] 已跳过此内容 [{line}]"
+                        )
+                    elif item[0].strip() != "anonymous" and len(item[2].strip()) == 0:
+                        print(
+                            f"该用户名条目 [{item[0].strip()}] 没有密码(只有匿名用户 anonymous 可以不设密码)，已跳过此内容 [{line}]"
                         )
                     else:
                         self.userNameSet.add(item[0].strip())

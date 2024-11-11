@@ -5,6 +5,8 @@ env
 venv
 FtpServer.json
 *.csv
+*.crt
+*.key
 __pycache__
 mypyftpdlib/__pycache__
 ftpServer.onefile-build

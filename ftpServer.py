@@ -8,13 +8,16 @@ import tkinter
 
 from tkinter import ttk, scrolledtext, filedialog, messagebox
 from mypyftpdlib.authorizers import DummyAuthorizer
-from mypyftpdlib.handlers import FTPHandler
+from mypyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 from PIL import ImageTk, Image
 from io import BytesIO
 from functools import reduce
 
 # pip install Pillow pypiwin32 pyinstaller nuitka pystray pyopenssl pyasynchat
+
+# 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
+# $> openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
 
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
@@ -31,7 +34,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.15"
+appVersion = "v1.16"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
@@ -48,6 +51,8 @@ isIPv6Supported: bool = False
 isIPv4ThreadRunning: bool = False
 isIPv6ThreadRunning: bool = False
 
+certFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.crt")
+keyFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.key")
 
 def updateSettingVars():
     global settings
@@ -245,6 +250,8 @@ def startServer():
 def serverThreadFunV4():
     global serverV4
     global isIPv4ThreadRunning
+    global certFilePath
+    global keyFilePath
 
     authorizer = DummyAuthorizer()
 
@@ -270,7 +277,16 @@ def serverThreadFunV4():
                 perm=userItem.perm,
             )
 
-    handler = FTPHandler
+    if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
+        handler = TLS_FTPHandler
+        handler.certfile = certFilePath
+        handler.keyfile = keyFilePath
+        handler.tls_control_required = True
+        handler.tls_data_required = True
+        print("[FTP IPv4] 已加载 SSL 证书文件，默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+    else:
+        handler = FTPHandler
+
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV4 = ThreadedFTPServer(("0.0.0.0", settings.IPv4Port), handler)
@@ -284,6 +300,8 @@ def serverThreadFunV4():
 def serverThreadFunV6():
     global serverV6
     global isIPv6ThreadRunning
+    global certFilePath
+    global keyFilePath
 
     authorizer = DummyAuthorizer()
 
@@ -309,7 +327,17 @@ def serverThreadFunV6():
                 perm=userItem.perm,
             )
 
-    handler = FTPHandler
+    # handler = FTPHandler
+    if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
+        handler = TLS_FTPHandler
+        handler.certfile = certFilePath
+        handler.keyfile = keyFilePath
+        handler.tls_control_required = True
+        handler.tls_data_required = True
+        print("[FTP IPv6] 已加载 SSL 证书文件，默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+    else:
+        handler = FTPHandler
+
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV6 = ThreadedFTPServer(("::", settings.IPv6Port), handler)
@@ -546,15 +574,15 @@ def main():
     )
     userNameVar = tkinter.StringVar()
     userNameEntry = ttk.Entry(window, textvariable=userNameVar, width=scale(12))
-    userNameEntry.place(
-        x=scale(40), y=scale(40), width=scale(150), height=scale(25)
-    )
+    userNameEntry.place(x=scale(40), y=scale(40), width=scale(150), height=scale(25))
 
     ttk.Label(window, text="密码").place(
         x=scale(10), y=scale(70), width=scale(30), height=scale(25)
     )
     userPasswordVar = tkinter.StringVar()
-    userPasswordEntry = ttk.Entry(window, textvariable=userPasswordVar, width=scale(12), show="*")
+    userPasswordEntry = ttk.Entry(
+        window, textvariable=userPasswordVar, width=scale(12), show="*"
+    )
     userPasswordEntry.place(
         x=scale(40), y=scale(70), width=scale(150), height=scale(25)
     )
@@ -648,6 +676,9 @@ def main():
     if settings.isAutoStartServer:
         startButton.invoke()
         window.withdraw()
+
+    if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
+        print("检测到 SSL 证书文件, 默认使用 FTPS [TLS/SSL显式加密, TLSv1.3]")
 
     window.mainloop()
 
