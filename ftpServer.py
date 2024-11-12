@@ -34,7 +34,7 @@ iconStr = b"AAABAAEAQEAAAAAAIAATEQAAFgAAAIlQTkcNChoKAAAADUlIRFIAAABAAAAAQAgGAAAA
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.17"
+appVersion = "v1.18"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
@@ -78,7 +78,7 @@ openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nod
 第三列: 权限, 详细配置如下。
 第四列: 根目录路径。
 
-详细权限配置：
+详细权限配置: 
 使用 "readonly" 或 "只读" (需保证文本格式为UTF-8) 设置 "只读权限"。
 使用 "readwrite" 或 "读写" 设置 "读写权限"。
 使用 "自定义" 权限设置, 从以下权限挑选自行组合(注意大小写): 
@@ -114,6 +114,14 @@ openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nod
 2. 若临时不需多用户配置, 可将文件重命名为其他名称。
 3. 若配置文件存在 "中文汉字", 需确保文本为 "UTF-8" 格式。
 4. 密码不要出现英文逗号 "," 字符, 以免和csv文本格式冲突。
+
+
+==== 本软件相关链接 ====
+
+开源地址: https://github.com/jark006/FtpServer
+下载地址: https://github.com/jark006/FtpServer/releases
+夸克网盘: https://pan.quark.cn/s/fb740c256653
+百度云盘: https://pan.baidu.com/s/1955qjdrnPtxhNhtksjqvfg?pwd=6666  提取码: 6666
 """
 
     helpWindows = tkinter.Toplevel(window)
@@ -378,6 +386,7 @@ def serverThreadFunV4():
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV4 = ThreadedFTPServer(("0.0.0.0", settings.IPv4Port), handler)
+    serverV4.max_cons = 4096
     print("[FTP IPv4] 开始运行")
     isIPv4ThreadRunning = True
     serverV4.serve_forever()
@@ -429,6 +438,7 @@ def serverThreadFunV6():
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
     serverV6 = ThreadedFTPServer(("::", settings.IPv6Port), handler)
+    serverV6.max_cons = 4096
     print("[FTP IPv6] 开始运行")
     isIPv6ThreadRunning = True
     serverV6.serve_forever()

@@ -2135,7 +2135,9 @@ class FTPHandler(AsyncChat):
             
         if cmd in self.log_cmds_translate:
             cmd = self.log_cmds_translate[cmd]
-        line = f"{cmd} {filename} {"完成" if completed else "失败"} {byte2Str(bytes)} {elapsed2Str(elapsed)}"
+        line = f"{cmd}{"成功" if completed else "失败"} {filename} {byte2Str(bytes)}"
+        if elapsed > 0:
+            line += f" {elapsed2Str(elapsed)} {(bytes/(2**20))/elapsed:.2f} MiB/s"
         self.log(line)
 
     # --- connection
@@ -2930,9 +2932,9 @@ class FTPHandler(AsyncChat):
         timefunc = time.gmtime if self.use_gmt_times else time.localtime
         try:
             # convert timeval string to epoch seconds
-            epoch = datetime.fromtimestamp(0, datetime.UTC)
+            epoch = datetime.fromtimestamp(0)
             timeval_datetime_obj = datetime.strptime(timeval, '%Y%m%d%H%M%S')
-            timeval_secs = (timeval_datetime_obj - epoch).total_seconds()
+            timeval_secs = (timeval_datetime_obj - epoch).total_seconds() + 8 * 3600 # UTC+8
         except ValueError:
             why = "Invalid time format; expected: YYYYMMDDHHMMSS"
             self.respond(f'550 {why}.')
