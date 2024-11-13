@@ -22,19 +22,12 @@ from functools import reduce
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
 # pyinstaller.exe .\ftpServer.spec
-# nuitka --standalone --onefile --enable-plugin=tk-inter --windows-disable-console .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico
-"""
-import base64
-with open(r"ico64x64.ico", "rb") as f:
-    iconStr = base64.b64encode(f.read())
-    print(iconStr)
-"""
-iconStr = b"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"
+# nuitka --standalone --onefile --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.20.0.0 --product-version=1.20.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024"
 
 
 appName = "FTP Server"
 appLabel = "FTP文件服务器"
-appVersion = "v1.18"
+appVersion = "v1.20"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
@@ -53,6 +46,22 @@ isIPv6ThreadRunning: bool = False
 
 certFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.crt")
 keyFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.key")
+
+ScaleFactor = 100
+
+"""
+import base64
+with open(r"ico64x64.ico", "rb") as f:
+    iconStr = base64.b64encode(f.read())
+    print(iconStr)
+"""
+iconStr = b"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"
+
+
+def scale(n: int) -> int:
+    global ScaleFactor
+    return int(n * ScaleFactor / 100)
+
 
 def showHelp():
     global window
@@ -125,21 +134,27 @@ openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nod
 """
 
     helpWindows = tkinter.Toplevel(window)
+    helpWindows.geometry(f"{scale(600)}x{scale(500)}")
+    helpWindows.resizable(False, False)
     helpWindows.title("帮助")
-    helpWindows.tk.call("wm", "iconphoto", helpWindows._w, icon_img)
-    helpTextWidget = scrolledtext.ScrolledText(helpWindows, bg="#dddddd", wrap=tkinter.CHAR)
+    helpWindows.iconphoto(False, icon_img)
+    helpTextWidget = scrolledtext.ScrolledText(
+        helpWindows, bg="#dddddd", wrap=tkinter.CHAR
+    )
     helpTextWidget.insert(tkinter.INSERT, helpTips)
     helpTextWidget.configure(state="disable")
-    helpTextWidget.pack()
+    helpTextWidget.place(x=0, y=0, width=scale(600), height=scale(500))
 
     def copyCallback(event=None):
-        helpTextWidget.event_generate('<<Copy>>')
+        helpTextWidget.event_generate("<<Copy>>")
+
     def popup(event: tkinter.Event):
         menu.post(event.x_root, event.y_root)
 
     menu = tkinter.Menu(window, tearoff=False)
     menu.add_command(label="复制", command=copyCallback)
     helpTextWidget.bind("<Button-3>", popup)
+
 
 def updateSettingVars():
     global settings
@@ -379,7 +394,9 @@ def serverThreadFunV4():
         handler.keyfile = keyFilePath
         handler.tls_control_required = True
         handler.tls_data_required = True
-        print("[FTP IPv4] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+        print(
+            "[FTP IPv4] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]"
+        )
     else:
         handler = FTPHandler
 
@@ -431,7 +448,9 @@ def serverThreadFunV6():
         handler.keyfile = keyFilePath
         handler.tls_control_required = True
         handler.tls_data_required = True
-        print("[FTP IPv6] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]")
+        print(
+            "[FTP IPv6] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]"
+        )
     else:
         handler = FTPHandler
 
@@ -599,6 +618,7 @@ def getTipsAndUrlList():
 
 
 def main():
+    global ScaleFactor
     global icon_img
     global settings
     global userList
@@ -620,12 +640,9 @@ def main():
     global isAutoStartServerVar
 
     # 告诉操作系统使用程序自身的dpi适配
-    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+    ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
     ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
-
-    def scale(n: int) -> int:
-        return int(n * ScaleFactor / 100)
 
     mystd = myStdout()  # 实例化重定向类
     logThread = threading.Thread(target=logThreadFun)
@@ -640,16 +657,14 @@ def main():
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
     window = tkinter.Tk()  # 实例化tk对象
+    window.geometry(f"{scale(600)}x{scale(500)}")
+    window.resizable(False, False)
+    window.tk.call("tk", "scaling", ScaleFactor / 75)# 设置程序缩放
+
     window.title(windowsTitle)
     icon_img = ImageTk.PhotoImage(data=base64.b64decode(iconStr))
-    window.tk.call("wm", "iconphoto", window._w, icon_img)
-
-    window.resizable(0, 0)  # 固定窗口
+    window.iconphoto(False, icon_img)
     window.protocol("WM_DELETE_WINDOW", hide_window)
-
-    winWidht = 600
-    winHeight = 500
-    window.geometry(f"{scale(winWidht)}x{scale(winHeight)}")
 
     startButton = ttk.Button(window, text="开启", command=startServer)
     startButton.place(x=scale(10), y=scale(10), width=scale(60), height=scale(25))
@@ -740,12 +755,10 @@ def main():
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
     loggingWidget.configure(state="disable")
 
-    # 设置程序缩放
-    window.tk.call("tk", "scaling", ScaleFactor / 75)
 
     settings = Settings.Settings()
     userList = UserList.UserList()
-    if not userList.isEmpty() :
+    if not userList.isEmpty():
         userList.print()
         userNameEntry.configure(state="disable")
         userPasswordEntry.configure(state="disable")
