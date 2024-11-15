@@ -25,7 +25,6 @@ from functools import reduce
 # nuitka --standalone --onefile --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.20.0.0 --product-version=1.20.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024"
 
 
-appName = "FTP Server"
 appLabel = "FTP文件服务器"
 appVersion = "v1.20"
 appAuthor = "Github@JARK006"
@@ -70,13 +69,13 @@ def showHelp():
 
 ==== FTPS 配置 ====
 
-在 "Linux" 或 "MinGW64" 终端使用 "openssl" (命令如下)生成SSL证书文件, "不要重命名"文件为其他名称。
-直接将其放到程序所在目录, 开启服务时若存在这两个文件, 则自动启用加密连接 "FTPS [TLS/SSL显式加密, TLSv1.3]"
-推荐使用开源软件 "WinSCP" 作为FTP客户端, 对FTPS支持比较好。
-
-# 生成 ftpServer.key 和 ftpServer.crt 有效期100年, 需填入一些简单信息（地区/名字/Email等）
+在 "Linux" 或 "MinGW64" 终端使用 "openssl" (命令如下，需填入一些简单信息: 地区/名字/Email等)生成SSL证书文件(ftpServer.key和ftpServer.crt), "不要重命名"文件为其他名称。
 
 openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
+
+直接将 ftpServer.key 和 ftpServer.crt 放到程序所在目录, 开启服务时若存在这两个文件, 则启用加密传输 "FTPS [TLS/SSL显式加密, TLSv1.3]"。
+Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "WinSCP" FTP客户端, 对 FTPS 支持比较好。
+开启 "FTPS 加密传输" 后, 会影响传输性能, 最大传输速度会降到 50MiB/s 左右。若对网络安全没那么高要求, 不建议加密。
 
 
 ==== 多用户配置 ====
@@ -88,8 +87,8 @@ openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nod
 第四列: 根目录路径。
 
 详细权限配置: 
-使用 "readonly" 或 "只读" (需保证文本格式为UTF-8) 设置 "只读权限"。
-使用 "readwrite" 或 "读写" 设置 "读写权限"。
+使用 "readonly" 或 "只读" 设置为 "只读权限"。
+使用 "readwrite" 或 "读写" 设置为 "读写权限"。
 使用 "自定义" 权限设置, 从以下权限挑选自行组合(注意大小写): 
 
 参考链接: https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
@@ -120,9 +119,9 @@ openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nod
 
 其他:
 1. 若读取到有效配置, 则自动 "禁用"主页面的用户/密码设置。
-2. 若临时不需多用户配置, 可将文件重命名为其他名称。
-3. 若配置文件存在 "中文汉字", 需确保文本为 "UTF-8" 格式。
-4. 密码不要出现英文逗号 "," 字符, 以免和csv文本格式冲突。
+2. 密码不要出现英文逗号 "," 字符, 以免和csv文本格式冲突。
+3. 若临时不需多用户配置, 可将配置文件 "删除" 或 "重命名" 为其他名称。
+4. 配置文件可以是UTF-8或GBK编码。
 
 
 ==== 本软件相关链接 ====

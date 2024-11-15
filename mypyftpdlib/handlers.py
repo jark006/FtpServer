@@ -2132,10 +2132,13 @@ class FTPHandler(AsyncChat):
                 return f"{elapsed:.2f} 秒"
             else:
                 return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
-            
+
+        def completedStr(completed: bool) -> str:
+            return "成功" if completed else "失败"
+
         if cmd in self.log_cmds_translate:
             cmd = self.log_cmds_translate[cmd]
-        line = f"{cmd}{"成功" if completed else "失败"} {filename} {byte2Str(bytes)}"
+        line = f"{cmd}{completedStr(completed)} {filename} {byte2Str(bytes)}"
         if elapsed > 0:
             line += f" {elapsed2Str(elapsed)} {(bytes/(2**20))/elapsed:.2f} MiB/s"
         self.log(line)

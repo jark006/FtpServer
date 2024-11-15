@@ -59,13 +59,24 @@ class UserList:
             else:
                 return "".join(charSet)
 
-    def permRevert(self, input: str) -> str:
+    def permTranslate(self, input: str) -> str:
         if input == "elr":
             return "只读"
         elif input == "elradfmwMT":
             return "读写"
         else:
             return input
+
+    def readAllLines(self) -> list[str]:
+        for encoding in ['utf-8', 'gbk']:
+            try:
+                with open(self.savePath, 'r', encoding=encoding) as file:
+                    allLines = file.read().splitlines()
+                    return allLines
+            except:
+                continue
+        print(f"无法使用UTF-8或GBK编码读取文件 {self.savePath}")
+        return [""]
 
     def load(self):
         self.userList.clear()
@@ -75,8 +86,7 @@ class UserList:
             return
 
         try:
-            with open(self.savePath, "r") as file:
-                allLines = file.read().splitlines()
+            allLines = self.readAllLines()
 
             for line in allLines:
                 if len(line.strip()) == 0:
@@ -127,7 +137,7 @@ class UserList:
             print(f"主页面的用户/密码设置将会忽略，现将使用以下{len(self.userList)}条用户配置:")
             for userItem in self.userList:
                 print(
-                    f"[{userItem.userName}] [******] [{self.permRevert(userItem.perm)}] [{userItem.path}]"
+                    f"[{userItem.userName}] [******] [{self.permTranslate(userItem.perm)}] [{userItem.path}]"
                 )
             print('')
 
