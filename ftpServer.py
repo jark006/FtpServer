@@ -155,6 +155,34 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
     helpTextWidget.bind("<Button-3>", popup)
 
 
+def deleteCurrentComboboxItem():
+    global settings
+    global directoryCombobox
+
+    currentDirectoryList = list(directoryCombobox["value"])
+
+    if len(currentDirectoryList) <= 1:
+        settings.directoryList = [settings.appDirectory]
+        directoryCombobox["value"] = tuple(settings.directoryList)
+        directoryCombobox.current(0)
+        print("目录列表已清空, 默认恢复到程序所在目录")
+        return
+
+    currentValue = directoryCombobox.get()
+
+    if currentValue in currentDirectoryList:
+        currentIdx = directoryCombobox.current(None)
+        currentDirectoryList.remove(currentValue)
+        settings.directoryList = currentDirectoryList
+        directoryCombobox["value"] = tuple(currentDirectoryList)
+        if currentIdx >= len(currentDirectoryList):
+            directoryCombobox.current(len(currentDirectoryList) - 1)
+        else:
+            directoryCombobox.current(currentIdx)
+    else:
+        directoryCombobox.current(0)
+
+
 def updateSettingVars():
     global settings
     global directoryCombobox
@@ -658,7 +686,7 @@ def main():
     window = tkinter.Tk()  # 实例化tk对象
     window.geometry(f"{scale(600)}x{scale(500)}")
     window.resizable(False, False)
-    window.tk.call("tk", "scaling", ScaleFactor / 75)# 设置程序缩放
+    window.tk.call("tk", "scaling", ScaleFactor / 75)  # 设置程序缩放
 
     window.title(windowsTitle)
     icon_img = ImageTk.PhotoImage(data=base64.b64decode(iconStr))
@@ -677,7 +705,11 @@ def main():
 
     directoryCombobox = ttk.Combobox(window)
     directoryCombobox.place(
-        x=scale(230), y=scale(10), width=scale(250), height=scale(25)
+        x=scale(230), y=scale(10), width=scale(220), height=scale(25)
+    )
+
+    ttk.Button(window, text="X", command=deleteCurrentComboboxItem, name="asd").place(
+        x=scale(450), y=scale(10), width=scale(25), height=scale(25)
     )
 
     ttk.Button(window, text="帮助", command=showHelp).place(
@@ -753,7 +785,6 @@ def main():
     loggingWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
     loggingWidget.configure(state="disable")
-
 
     settings = Settings.Settings()
     userList = UserList.UserList()
