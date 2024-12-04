@@ -1,5 +1,7 @@
 # 🖥️ FTP文件服务器
 
+![Version](https://img.shields.io/github/v/release/jark006/ftpServer) ![Stars](https://img.shields.io/github/stars/jark006/ftpServer) ![License](https://img.shields.io/github/license/jark006/ftpServer) ![Issues](https://img.shields.io/github/issues/jark006/ftpServer)
+
 一键开启FTP文件服务器，方便其他设备通过网络传输、管理文件，支持IPv4，IPv6。
 
 ---
