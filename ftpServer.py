@@ -6,7 +6,7 @@ import win32clipboard
 import win32con
 import tkinter
 
-from tkinter import ttk, scrolledtext, filedialog, messagebox
+from tkinter import ttk, scrolledtext, filedialog, messagebox, font
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
@@ -22,11 +22,11 @@ from functools import reduce
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
 # pyinstaller.exe .\ftpServer.spec
-# nuitka --standalone --onefile --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.20.0.0 --product-version=1.20.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024"
+# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.21.0.0 --product-version=1.21.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024"
 
 
 appLabel = "FTP文件服务器"
-appVersion = "v1.20"
+appVersion = "v1.21"
 appAuthor = "Github@JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
@@ -64,7 +64,8 @@ def scale(n: int) -> int:
 
 def showHelp():
     global window
-    global icon_img
+    global iconImage
+    global uiFont
     helpTips = """以下是 安全加密连接FTPS 和 多用户配置 说明, 普通用户一般不需要。
 
 ==== FTPS 配置 ====
@@ -136,9 +137,9 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
     helpWindows.geometry(f"{scale(600)}x{scale(500)}")
     helpWindows.resizable(False, False)
     helpWindows.title("帮助")
-    helpWindows.iconphoto(False, icon_img)
+    helpWindows.iconphoto(False, iconImage)
     helpTextWidget = scrolledtext.ScrolledText(
-        helpWindows, bg="#dddddd", wrap=tkinter.CHAR
+        helpWindows, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
     )
     helpTextWidget.insert(tkinter.INSERT, helpTips)
     helpTextWidget.configure(state="disable")
@@ -260,18 +261,19 @@ class myStdout:  # 重定向输出
         logMsg.put(info)
 
 
-def set_clipboard(data):
+def copyToClipboard(text: str):
     win32clipboard.OpenClipboard()
-    win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, data)
+    win32clipboard.EmptyClipboard()
+    win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
     win32clipboard.CloseClipboard()
 
 
-def ip_into_int(ip_str):
+def ip_into_int(ip_str: str) -> int:
     return reduce(lambda x, y: (x << 8) + y, map(int, ip_str.split(".")))
 
 
 # https://blog.mimvp.com/article/32438.html
-def is_internal_ip(ip_str):
+def is_internal_ip(ip_str: str) -> bool:
     ip_int = ip_into_int(ip_str)
     net_A = 10  # ip_into_int("10.255.255.255") >> 24
     net_B = 2753  # ip_into_int("172.31.255.255") >> 20
@@ -349,7 +351,7 @@ def startServer():
     tipsTextWidgetRightClickMenu.delete(0, len(ftpUrlList))
     for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
-            label=f"复制 {url}", command=lambda url=url: set_clipboard(url)
+            label=f"复制 {url}", command=lambda url=url: copyToClipboard(url)
         )
 
     try:
@@ -544,30 +546,31 @@ def openGithub():
     webbrowser.open(githubLink)
 
 
-def show_window():
+def showWindow():
     global window
     window.deiconify()
 
 
-def hide_window():
+def hideWindow():
     global window
     window.withdraw()
 
 
-def handleExit(icon: pystray._base.Icon):
+def handleExit(strayIcon: pystray._base.Icon):
     global window
     global logThreadrunning
     global logThread
-
-    icon.stop()
-    print("等待日志线程退出...")
-    logThreadrunning = False
-    logThread.join()
 
     updateSettingVars()
     settings.save()
 
     closeServer()
+    strayIcon.stop()
+
+    print("等待日志线程退出...")
+    logThreadrunning = False
+    logThread.join()
+
     window.destroy()
     exit(0)
 
@@ -646,7 +649,8 @@ def getTipsAndUrlList():
 
 def main():
     global ScaleFactor
-    global icon_img
+    global iconImage
+    global uiFont
     global settings
     global userList
     global window
@@ -676,7 +680,7 @@ def main():
     logThread.start()
 
     strayMenu = (
-        pystray.MenuItem("显示", show_window, default=True),
+        pystray.MenuItem("显示", showWindow, default=True),
         pystray.MenuItem("退出", handleExit),
     )
     strayImage = Image.open(BytesIO(base64.b64decode(iconStr)))
@@ -684,14 +688,15 @@ def main():
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
     window = tkinter.Tk()  # 实例化tk对象
+    uiFont = font.Font(font=("Consolas"))
     window.geometry(f"{scale(600)}x{scale(500)}")
     window.resizable(False, False)
     window.tk.call("tk", "scaling", ScaleFactor / 75)  # 设置程序缩放
 
     window.title(windowsTitle)
-    icon_img = ImageTk.PhotoImage(data=base64.b64decode(iconStr))
-    window.iconphoto(False, icon_img)
-    window.protocol("WM_DELETE_WINDOW", hide_window)
+    iconImage = ImageTk.PhotoImage(data=base64.b64decode(iconStr))
+    window.iconphoto(False, iconImage)
+    window.protocol("WM_DELETE_WINDOW", hideWindow)
 
     startButton = ttk.Button(window, text="开启", command=startServer)
     startButton.place(x=scale(10), y=scale(10), width=scale(60), height=scale(25))
@@ -779,10 +784,14 @@ def main():
         offvalue=False,
     ).place(x=scale(460), y=scale(40), width=scale(160), height=scale(50))
 
-    tipsTextWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
+    tipsTextWidget = scrolledtext.ScrolledText(
+        window, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
+    )
     tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
-    loggingWidget = scrolledtext.ScrolledText(window, bg="#dddddd", wrap=tkinter.CHAR)
+    loggingWidget = scrolledtext.ScrolledText(
+        window, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
+    )
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
     loggingWidget.configure(state="disable")
 
@@ -811,7 +820,7 @@ def main():
     tipsTextWidgetRightClickMenu = tkinter.Menu(window, tearoff=False)
     for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
-            label=f"复制 {url}", command=lambda url=url: set_clipboard(url)
+            label=f"复制 {url}", command=lambda url=url: copyToClipboard(url)
         )
 
     def popup(event: tkinter.Event):

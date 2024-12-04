@@ -117,5 +117,9 @@ class Settings:
             "isReadOnly": self.isReadOnly,
             "isAutoStartServer": self.isAutoStartServer,
         }
-        with open(self.savePath, "w") as file:
-            json.dump(variables, file)
+        try:
+            with open(self.savePath, "w") as file:
+                json.dump(variables, file)
+        except Exception as e:
+            print(f"设置文件保存异常: {self.savePath}\n{e}")
+            return
