@@ -27,9 +27,12 @@ from functools import reduce
 
 appLabel = "FTP文件服务器"
 appVersion = "v1.21"
-appAuthor = "Github@JARK006"
+appAuthor = "JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
-windowsTitle = f"{appLabel} {appVersion} By {appAuthor}"
+releaseLink = "https://github.com/jark006/FtpServer/releases"
+quarkLink = "https://pan.quark.cn/s/fb740c256653"
+baiduLink = "https://pan.baidu.com/s/1955qjdrnPtxhNhtksjqvfg?pwd=6666"
+windowsTitle = f"{appLabel} {appVersion}"
 tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
 
 logMsg = queue.Queue()
@@ -123,14 +126,6 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
 2. 密码不要出现英文逗号 "," 字符, 以免和csv文本格式冲突。
 3. 若临时不需多用户配置, 可将配置文件 "删除" 或 "重命名" 为其他名称。
 4. 配置文件可以是UTF-8或GBK编码。
-
-
-==== 本软件相关链接 ====
-
-开源地址: https://github.com/jark006/FtpServer
-下载地址: https://github.com/jark006/FtpServer/releases
-夸克网盘: https://pan.quark.cn/s/fb740c256653
-百度云盘: https://pan.baidu.com/s/1955qjdrnPtxhNhtksjqvfg?pwd=6666  提取码: 6666
 """
 
     helpWindows = tkinter.Toplevel(window)
@@ -145,15 +140,69 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
     helpTextWidget.configure(state="disable")
     helpTextWidget.place(x=0, y=0, width=scale(600), height=scale(500))
 
-    def copyCallback(event=None):
-        helpTextWidget.event_generate("<<Copy>>")
-
-    def popup(event: tkinter.Event):
-        menu.post(event.x_root, event.y_root)
-
     menu = tkinter.Menu(window, tearoff=False)
-    menu.add_command(label="复制", command=copyCallback)
-    helpTextWidget.bind("<Button-3>", popup)
+    menu.add_command(
+        label="复制",
+        command=lambda event=None: helpTextWidget.event_generate("<<Copy>>"),
+    )
+    helpTextWidget.bind(
+        "<Button-3>", lambda event: menu.post(event.x_root, event.y_root)
+    )
+
+
+def showAbout():
+    global window
+    global iconImage
+
+    aboutWindows = tkinter.Toplevel(window)
+    aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
+    aboutWindows.resizable(False, False)
+    aboutWindows.title("关于")
+    aboutWindows.iconphoto(False, iconImage)
+
+    tkinter.Label(aboutWindows, image=iconImage).place(
+        x=scale(0), y=scale(0), width=scale(100), height=scale(100)
+    )
+    tkinter.Label(
+        aboutWindows,
+        text=f"{appLabel} {appVersion}",
+        font=font.Font(font=("Consolas", scale(12))),
+    ).place(x=scale(100), y=scale(0), width=scale(300), height=scale(70))
+
+    tkinter.Label(aboutWindows, text=f"开发者: {appAuthor}").place(
+        x=scale(100), y=scale(60), width=scale(300), height=scale(30)
+    )
+
+    tkinter.Label(aboutWindows, text="Github").place(
+        x=scale(20), y=scale(100), width=scale(60), height=scale(20)
+    )
+    tkinter.Label(aboutWindows, text="Release").place(
+        x=scale(20), y=scale(120), width=scale(60), height=scale(20)
+    )
+    tkinter.Label(aboutWindows, text="夸克网盘").place(
+        x=scale(20), y=scale(140), width=scale(60), height=scale(20)
+    )
+    tkinter.Label(aboutWindows, text="百度云盘").place(
+        x=scale(20), y=scale(160), width=scale(60), height=scale(20)
+    )
+
+    label1 = ttk.Label(aboutWindows, text=githubLink, foreground="blue")
+    label1.bind("<Button-1>", lambda event: webbrowser.open(githubLink))
+    label1.place(x=scale(80), y=scale(100), width=scale(320), height=scale(20))
+
+    label2 = ttk.Label(aboutWindows, text=releaseLink, foreground="blue")
+    label2.bind("<Button-1>", lambda event: webbrowser.open(releaseLink))
+    label2.place(x=scale(80), y=scale(120), width=scale(320), height=scale(20))
+
+    label3 = ttk.Label(aboutWindows, text=quarkLink, foreground="blue")
+    label3.bind("<Button-1>", lambda event: webbrowser.open(quarkLink))
+    label3.place(x=scale(80), y=scale(140), width=scale(320), height=scale(20))
+
+    label4 = ttk.Label(
+        aboutWindows, text=baiduLink[:30] + "... 提取码: 6666", foreground="blue"
+    )
+    label4.bind("<Button-1>", lambda event: webbrowser.open(baiduLink))
+    label4.place(x=scale(80), y=scale(160), width=scale(320), height=scale(20))
 
 
 def deleteCurrentComboboxItem():
@@ -542,10 +591,6 @@ def pickDirectory():
         print(tips)
 
 
-def openGithub():
-    webbrowser.open(githubLink)
-
-
 def showWindow():
     global window
     window.deiconify()
@@ -721,7 +766,7 @@ def main():
         x=scale(485), y=scale(10), width=scale(50), height=scale(25)
     )
 
-    ttk.Button(window, text="关于", command=openGithub).place(
+    ttk.Button(window, text="关于", command=showAbout).place(
         x=scale(540), y=scale(10), width=scale(50), height=scale(25)
     )
 
@@ -823,12 +868,10 @@ def main():
             label=f"复制 {url}", command=lambda url=url: copyToClipboard(url)
         )
 
-    def popup(event: tkinter.Event):
-        tipsTextWidgetRightClickMenu.post(
-            event.x_root, event.y_root
-        )  # post在指定的位置显示弹出菜单
-
-    tipsTextWidget.bind("<Button-3>", popup)  # 绑定鼠标右键,执行popup函数
+    tipsTextWidget.bind(
+        "<Button-3>",
+        lambda event: tipsTextWidgetRightClickMenu.post(event.x_root, event.y_root),
+    )
 
     if settings.isAutoStartServer:
         startButton.invoke()
