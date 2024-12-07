@@ -137,7 +137,7 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
         helpWindows, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
     )
     helpTextWidget.insert(tkinter.INSERT, helpTips)
-    helpTextWidget.configure(state="disable")
+    helpTextWidget.configure(state=tkinter.DISABLED)
     helpTextWidget.place(x=0, y=0, width=scale(600), height=scale(500))
 
     menu = tkinter.Menu(window, tearoff=False)
@@ -371,16 +371,16 @@ def startServer():
 
     userList.load()
     if userList.isEmpty():
-        userNameEntry.configure(state="normal")
-        userPasswordEntry.configure(state="normal")
+        userNameEntry.configure(state=tkinter.NORMAL)
+        userPasswordEntry.configure(state=tkinter.NORMAL)
         if len(settings.userName) > 0 and len(settings.userPassword) == 0:
             tips: str = "!!! 请设置密码再启动服务 !!!"
             messagebox.showerror("密码异常", tips)
             print(tips)
             return
     else:
-        userNameEntry.configure(state="disable")
-        userPasswordEntry.configure(state="disable")
+        userNameEntry.configure(state=tkinter.DISABLED)
+        userPasswordEntry.configure(state=tkinter.DISABLED)
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
@@ -392,10 +392,10 @@ def startServer():
 
     settings.save()
 
-    tipsTextWidget.configure(state="normal")
+    tipsTextWidget.configure(state=tkinter.NORMAL)
     tipsTextWidget.delete("0.0", tkinter.END)
     tipsTextWidget.insert(tkinter.INSERT, tipsStr)
-    tipsTextWidget.configure(state="disable")
+    tipsTextWidget.configure(state=tkinter.DISABLED)
 
     tipsTextWidgetRightClickMenu.delete(0, len(ftpUrlList))
     for url in ftpUrlList:
@@ -623,27 +623,32 @@ def handleExit(strayIcon: pystray._base.Icon):
 def logThreadFun():
     global logThreadrunning
     global loggingWidget
-    cnt: int = 0
+
+    logMsgBackup = []
     while logThreadrunning:
         if logMsg.empty():
             time.sleep(0.1)
             continue
 
-        cnt += 1
-        if cnt > 100:
-            cnt = 0
-            loggingWidget.configure(state="normal")
-            loggingWidget.delete(0.0, tkinter.END)
-            loggingWidget.configure(state="disable")
-
         logInfo = ""
         while not logMsg.empty():
             logInfo += logMsg.get()
 
-        loggingWidget.configure(state="normal")
-        loggingWidget.insert("end", logInfo)
+        logMsgBackup.append(logInfo)
+        if len(logMsgBackup) > 500:
+            loggingWidget.configure(state=tkinter.NORMAL)
+            loggingWidget.delete(0.0, tkinter.END)
+            loggingWidget.configure(state=tkinter.DISABLED)
+
+            logMsgBackup = logMsgBackup[-20:]
+            logInfo = ""
+            for tmp in logMsgBackup:
+                logInfo += tmp
+
+        loggingWidget.configure(state=tkinter.NORMAL)
+        loggingWidget.insert(tkinter.END, logInfo)
         loggingWidget.see(tkinter.END)
-        loggingWidget.configure(state="disable")
+        loggingWidget.configure(state=tkinter.DISABLED)
 
 
 def getTipsAndUrlList():
@@ -838,14 +843,14 @@ def main():
         window, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
     )
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
-    loggingWidget.configure(state="disable")
+    loggingWidget.configure(state=tkinter.DISABLED)
 
     settings = Settings.Settings()
     userList = UserList.UserList()
     if not userList.isEmpty():
         userList.print()
-        userNameEntry.configure(state="disable")
-        userPasswordEntry.configure(state="disable")
+        userNameEntry.configure(state=tkinter.DISABLED)
+        userPasswordEntry.configure(state=tkinter.DISABLED)
 
     directoryCombobox["value"] = tuple(settings.directoryList)
     directoryCombobox.current(0)
@@ -860,7 +865,7 @@ def main():
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
     tipsTextWidget.insert(tkinter.INSERT, tipsStr)
-    tipsTextWidget.configure(state="disable")
+    tipsTextWidget.configure(state=tkinter.DISABLED)
 
     tipsTextWidgetRightClickMenu = tkinter.Menu(window, tearoff=False)
     for url in ftpUrlList:
