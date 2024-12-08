@@ -2113,7 +2113,7 @@ class FTPHandler(AsyncChat):
         - (int) bytes:
            number of bytes transmitted.
         """
-        def byte2Str(bytes: int):
+        def byte2Str(bytes: int) -> str:
             if bytes < 1024:
                 return f"{bytes} Bytes"
             elif bytes < 1024**2:
@@ -2123,15 +2123,15 @@ class FTPHandler(AsyncChat):
             else:
                 return f"{bytes/(1024.0**3):.2f} GiB"
 
-        def elapsed2Str(elapsed: float):
+        def elapsed2Str(elapsed: float) -> str:
             if elapsed < 1e-3:
-                return f"{elapsed*1e6:.2f} 微秒"
+                return ""
             elif elapsed < 1.0:
-                return f"{elapsed*1e3:.2f} 毫秒"
+                return f"{int(elapsed*1e3)} 毫秒"
             elif elapsed < 60.0:
-                return f"{elapsed:.2f} 秒"
+                return f"{int(elapsed)} 秒"
             else:
-                return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
+                return f"{(int(elapsed)/60)}分{(int(elapsed)%60)}秒"
 
         def completedStr(completed: bool) -> str:
             return "成功" if completed else "失败"
