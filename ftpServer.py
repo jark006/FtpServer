@@ -22,11 +22,11 @@ from functools import reduce
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
 # pyinstaller.exe .\ftpServer.spec
-# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.21.0.0 --product-version=1.21.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024"
+# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.22.0.0 --product-version=1.22.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024 Github@JARK006"
 
 
 appLabel = "FTP文件服务器"
-appVersion = "v1.21"
+appVersion = "v1.22"
 appAuthor = "JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 releaseLink = "https://github.com/jark006/FtpServer/releases"

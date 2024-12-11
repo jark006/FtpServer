@@ -511,7 +511,7 @@ class PassiveDTP(Acceptor):
                 except OSError:
                     pass
                 msg = (
-                    '425 Rejected data connection from foreign address '
+                    '425 来自外部地址的数据连接被拒绝 '
                     f'{addr[0]}:{addr[1]}.'
                 )
                 self.cmd_channel.respond_w_warning(msg)
@@ -520,7 +520,7 @@ class PassiveDTP(Acceptor):
             else:
                 # site-to-site FTP allowed
                 msg = (
-                    'Established data connection with foreign address '
+                    '与外部地址建立数据连接 '
                     f'{addr[0]}:{addr[1]}.'
                 )
                 self.cmd_channel.log(msg, logfun=logger.warning)
@@ -614,7 +614,7 @@ class ActiveDTP(Connector):
         err = self.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)
         if err != 0:
             raise OSError(err)
-        msg = 'Active data connection established.'
+        msg = '已建立活动数据连接。'
         self.cmd_channel.respond('200 ' + msg)
         self.cmd_channel.log_cmd(self._cmd, self._normalized_addr, 200, msg)
         if not self.cmd_channel.connected:
@@ -626,7 +626,7 @@ class ActiveDTP(Connector):
 
     def handle_timeout(self):
         if self.cmd_channel.connected:
-            msg = "Active data channel timed out."
+            msg = "活动数据通道超时。"
             self.cmd_channel.respond("421 " + msg, logfun=logger.info)
             self.cmd_channel.log_cmd(
                 self._cmd, self._normalized_addr, 421, msg
@@ -640,7 +640,7 @@ class ActiveDTP(Connector):
         if not self._closed:
             self.close()
             if self.cmd_channel.connected:
-                msg = "Can't connect to specified address."
+                msg = "无法连接到指定的地址。"
                 self.cmd_channel.respond("425 " + msg)
                 self.cmd_channel.log_cmd(
                     self._cmd, self._normalized_addr, 425, msg
@@ -960,7 +960,7 @@ class DTPHandler(AsyncChat):
         if self.get_transmitted_bytes() > self._lastdata:
             self._lastdata = self.get_transmitted_bytes()
         else:
-            msg = "Data connection timed out."
+            msg = "数据连接超时。"
             self._resp = ("421 " + msg, logger.info)
             self.close()
             self.cmd_channel.close_when_done()
@@ -1498,7 +1498,7 @@ class FTPHandler(AsyncChat):
 
     def handle_max_cons(self):
         """Called when limit for maximum number of connections is reached."""
-        msg = "421 Too many connections. Service temporarily unavailable."
+        msg = "421 连接过多。服务暂时不可用。"
         self.respond_w_warning(msg)
         # If self.push is used, data could not be sent immediately in
         # which case a new "loop" will occur exposing us to the risk of
@@ -1511,14 +1511,14 @@ class FTPHandler(AsyncChat):
 
     def handle_max_cons_per_ip(self):
         """Called when too many clients are connected from the same IP."""
-        msg = "421 Too many connections from the same IP address."
+        msg = "421 来自同一IP地址的连接过多。"
         self.respond_w_warning(msg)
         self.close_when_done()
 
     def handle_timeout(self):
         """Called when client does not send any command within the time
         specified in <timeout> attribute."""
-        msg = "Control connection timed out."
+        msg = "控制连接超时。"
         self.respond("421 " + msg, logfun=logger.info)
         self.close_when_done()
 
@@ -1565,7 +1565,7 @@ class FTPHandler(AsyncChat):
             # but user might want to override this behavior.
             # RFC-2640 doesn't mention what to do in this case so
             # we'll just return 501 (bad arg).
-            return self.respond("501 Can't decode command.")
+            return self.respond("501 无法解码命令。")
 
         self._in_buffer = []
         self._in_buffer_len = 0
@@ -1576,7 +1576,7 @@ class FTPHandler(AsyncChat):
             self.pre_process_command(line, cmd, arg)
         except UnicodeEncodeError:
             self.respond(
-                "501 can't decode path (server filesystem encoding is"
+                "501 无法解码路径(服务器文件系统编码是"
                 f" {sys.getfilesystemencoding()})"
             )
 
@@ -1600,7 +1600,7 @@ class FTPHandler(AsyncChat):
             if cmd[-4:] in ('ABOR', 'STAT', 'QUIT'):
                 cmd = cmd[-4:]
             else:
-                msg = f'非法命令 "{cmd}"'
+                msg = f'非法命令 [{cmd}]'
                 self.respond('500 ' + msg)
                 if cmd:
                     self.log_cmd(cmd, arg, 500, msg)
@@ -1914,7 +1914,7 @@ class FTPHandler(AsyncChat):
         """
         if self.data_channel is not None:
             self.respond(
-                "125 Data connection already open. Transfer starting."
+                "125 数据连接已打开。开始传送数据。"
             )
             if file:
                 self.data_channel.file_obj = file
@@ -1931,7 +1931,7 @@ class FTPHandler(AsyncChat):
                 self.data_channel.handle_error()
         else:
             self.respond(
-                "150 File status okay. About to open data connection."
+                "150 文件状态正常。即将打开数据连接。"
             )
             self._out_dtp_queue = (data, isproducer, file, cmd)
 
@@ -2036,8 +2036,8 @@ class FTPHandler(AsyncChat):
         "STOU": "存储唯一文件",
         "ALLO": "分配空间",
         "REST": "恢复传输",
-        "RNFR": "重命名文件（源）",
-        "RNTO": "重命名文件（目标）",
+        "RNFR": "重命名（原名称）",
+        "RNTO": "重命名（新名称）",
         "ABOR": "中断传输",
         "DELE": "删除",
         "RMD": "删除目录",
@@ -2115,32 +2115,40 @@ class FTPHandler(AsyncChat):
         """
         def byte2Str(bytes: int) -> str:
             if bytes < 1024:
-                return f"{bytes} Bytes"
+                return f"{bytes}Bytes"
             elif bytes < 1024**2:
-                return f"{bytes/1024.0:.2f} KiB"
+                return f"{bytes/1024.0:.2f}KiB"
             elif bytes < 1024**3:
-                return f"{bytes/(1024.0**2):.2f} MiB"
+                return f"{bytes/(1024.0**2):.2f}MiB"
             else:
-                return f"{bytes/(1024.0**3):.2f} GiB"
+                return f"{bytes/(1024.0**3):.2f}GiB"
 
         def elapsed2Str(elapsed: float) -> str:
             if elapsed < 1e-3:
                 return ""
             elif elapsed < 1.0:
-                return f"{int(elapsed*1e3)} 毫秒"
+                return f"{int(elapsed*1e3)}毫秒"
             elif elapsed < 60.0:
-                return f"{int(elapsed)} 秒"
+                return f"{int(elapsed)}秒"
             else:
                 return f"{(int(elapsed)/60)}分{(int(elapsed)%60)}秒"
 
         def completedStr(completed: bool) -> str:
             return "成功" if completed else "失败"
+        
+        def speed2Str(MiB_Speed: float) -> str:
+            if MiB_Speed > 1024.0:
+                return f"{(MiB_Speed/1024):.1f}GiB/s"
+            elif MiB_Speed > 1.0:
+                return f"{MiB_Speed:.1f}MiB/s"
+            else:
+                return f"{(MiB_Speed*1024.0):.1f}KiB/s"
 
         if cmd in self.log_cmds_translate:
             cmd = self.log_cmds_translate[cmd]
         line = f"{cmd}{completedStr(completed)} {filename} {byte2Str(bytes)}"
         if elapsed > 0:
-            line += f" {elapsed2Str(elapsed)} {(bytes/(2**20))/elapsed:.2f} MiB/s"
+            line += f" {elapsed2Str(elapsed)} {speed2Str((bytes/(2**20))/elapsed)}"
         self.log(line)
 
     # --- connection
@@ -2164,7 +2172,7 @@ class FTPHandler(AsyncChat):
             remote_ip = remote_ip[7:]
         if not self.permit_foreign_addresses and ip != remote_ip:
             msg = (
-                f"501 Rejected data connection to foreign address {ip}:{port}."
+                f"501 拒绝外部地址的数据连接 {ip}:{port}."
             )
             self.respond_w_warning(msg)
             return
@@ -2172,7 +2180,7 @@ class FTPHandler(AsyncChat):
         # ...another RFC-2577 recommendation is rejecting connections
         # to privileged ports (< 1024) for security reasons.
         if not self.permit_privileged_ports and port < 1024:
-            msg = f'501 PORT against the privileged port "{port}" refused.'
+            msg = f'501 针对特权端口 "{port}" 的请求被拒绝。'
             self.respond_w_warning(msg)
             return
 
@@ -2185,7 +2193,7 @@ class FTPHandler(AsyncChat):
 
         # make sure we are not hitting the max connections limit
         if not self.server._accept_new_cons():
-            msg = "425 Too many connections. Can't open data channel."
+            msg = "425 连接太多。无法打开数据通道。"
             self.respond_w_warning(msg)
             return
 
@@ -2208,7 +2216,7 @@ class FTPHandler(AsyncChat):
 
         # make sure we are not hitting the max connections limit
         if not self.server._accept_new_cons():
-            msg = "425 Too many connections. Can't open data channel."
+            msg = "425 连接太多。无法打开数据通道。"
             self.respond_w_warning(msg)
             return
 
@@ -2218,7 +2226,7 @@ class FTPHandler(AsyncChat):
     def ftp_PORT(self, line):
         """Start an active data channel by using IPv4."""
         if self._epsvall:
-            self.respond("501 PORT not allowed after EPSV ALL.")
+            self.respond("501 EPSV ALL后不允许使用PORT命令。")
             return
         # Parse PORT request for getting IP and PORT.
         # Request comes in as:
@@ -2237,7 +2245,7 @@ class FTPHandler(AsyncChat):
             if not 0 <= port <= 65535:
                 raise ValueError
         except (ValueError, OverflowError):
-            self.respond("501 Invalid PORT format.")
+            self.respond("501 无效的 PORT 格式。")
             return
         self._make_eport(ip, port)
 
@@ -2246,7 +2254,7 @@ class FTPHandler(AsyncChat):
         to use (IPv4/IPv6) as defined in RFC-2428.
         """
         if self._epsvall:
-            self.respond("501 EPRT not allowed after EPSV ALL.")
+            self.respond("501 EPSV ALL后不允许EPRT。")
             return
         # Parse EPRT request for getting protocol, IP and PORT.
         # Request comes in as:
@@ -2259,7 +2267,7 @@ class FTPHandler(AsyncChat):
             if not 0 <= port <= 65535:
                 raise ValueError
         except (ValueError, IndexError, OverflowError):
-            self.respond("501 Invalid EPRT format.")
+            self.respond("501 无效的EPRT格式。")
             return
 
         if af == "1":
@@ -2268,7 +2276,7 @@ class FTPHandler(AsyncChat):
                 self.socket.family == socket.AF_INET6
                 and not SUPPORTS_HYBRID_IPV6
             ):
-                self.respond('522 Network protocol not supported (use 2).')
+                self.respond('522 不支持网络协议(建议使用2)。')
             else:
                 try:
                     octs = list(map(int, ip.split('.')))
@@ -2278,23 +2286,23 @@ class FTPHandler(AsyncChat):
                         if not 0 <= x <= 255:
                             raise ValueError
                 except (ValueError, OverflowError):
-                    self.respond("501 Invalid EPRT format.")
+                    self.respond("501 无效的EPRT格式。")
                 else:
                     self._make_eport(ip, port)
         elif af == "2":
             if self.socket.family == socket.AF_INET:
-                self.respond('522 Network protocol not supported (use 1).')
+                self.respond('522 不支持网络协议(建议使用1)。')
             else:
                 self._make_eport(ip, port)
         elif self.socket.family == socket.AF_INET:
-            self.respond('501 Unknown network protocol (use 1).')
+            self.respond('501 未知网络协议(建议使用1).')
         else:
-            self.respond('501 Unknown network protocol (use 2).')
+            self.respond('501 未知网络协议(建议使用2).')
 
     def ftp_PASV(self, line):
         """Start a passive data channel by using IPv4."""
         if self._epsvall:
-            self.respond("501 PASV not allowed after EPSV ALL.")
+            self.respond("501 EPSV ALL后不允许PASV。")
             return
         self._make_epasv(extmode=False)
 
@@ -2318,31 +2326,31 @@ class FTPHandler(AsyncChat):
         # IPv4
         elif line == "1":
             if self.socket.family != socket.AF_INET:
-                self.respond('522 Network protocol not supported (use 2).')
+                self.respond('522 不支持的网络协议(建议使用2)')
             else:
                 self._make_epasv(extmode=True)
         # IPv6
         elif line == "2":
             if self.socket.family == socket.AF_INET:
-                self.respond('522 Network protocol not supported (use 1).')
+                self.respond('522 不支持的网络协议(建议使用1)')
             else:
                 self._make_epasv(extmode=True)
         elif line.lower() == 'all':
             self._epsvall = True
             self.respond(
-                '220 Other commands other than EPSV are now disabled.'
+                '220 EPSV以外的其他命令已被禁用。'
             )
         elif self.socket.family == socket.AF_INET:
-            self.respond('501 Unknown network protocol (use 1).')
+            self.respond('501 未知网络协议(建议使用1)')
         else:
-            self.respond('501 Unknown network protocol (use 2).')
+            self.respond('501 未知网络协议(建议使用2)')
 
     def ftp_QUIT(self, line):
         """Quit the current session disconnecting the client."""
         if self.authenticated:
             msg_quit = self.authorizer.get_msg_quit(self.username)
         else:
-            msg_quit = "Goodbye."
+            msg_quit = "再见"
         if len(msg_quit) <= 75:
             self.respond(f"221 {msg_quit}")
         else:
@@ -2451,7 +2459,7 @@ class FTPHandler(AsyncChat):
             self.push(f'250-Listing "{line}":\r\n')
             # the fact set must be preceded by a space
             self.push(' ' + data)
-            self.respond('250 End MLST.')
+            self.respond('250 MLST结束。')
             return path
 
     def ftp_MLSD(self, path):
@@ -2461,7 +2469,7 @@ class FTPHandler(AsyncChat):
         """
         # RFC-3659 requires 501 response code if path is not a directory
         if not self.fs.isdir(path):
-            self.respond("501 No such directory.")
+            self.respond("501 没有该目录。")
             return
         try:
             listing = self.run_as_current_user(self.fs.listdir, path)
@@ -2564,12 +2572,12 @@ class FTPHandler(AsyncChat):
                     return
 
             if self.data_channel is not None:
-                resp = "Data connection already open. Transfer starting."
+                resp = "数据连接已打开。开始传送数据。"
                 self.respond("125 " + resp)
                 self.data_channel.file_obj = fd
                 self.data_channel.enable_receiving(self._current_type, cmd)
             else:
-                resp = "File status okay. About to open data connection."
+                resp = "文件状态正常。即将打开数据连接。"
                 self.respond("150 " + resp)
                 self._in_dtp_queue = (fd, cmd)
             return file
@@ -2593,7 +2601,7 @@ class FTPHandler(AsyncChat):
 
         # watch for STOU preceded by REST, which makes no sense.
         if self._restart_position:
-            self.respond("450 Can't STOU while REST request is pending.")
+            self.respond("450 当REST请求挂起时不能STOU。")
             return
 
         if line:
@@ -2624,7 +2632,7 @@ class FTPHandler(AsyncChat):
                     self.run_as_current_user(self.fs.remove, fd.name)
                 except (OSError, FilesystemError):
                     pass
-                self.respond("550 Not enough privileges.")
+                self.respond("550 权限不够。")
                 return
 
             # now just acts like STOR except that restarting isn't allowed
@@ -2647,23 +2655,23 @@ class FTPHandler(AsyncChat):
         """
         # watch for APPE preceded by REST, which makes no sense.
         if self._restart_position:
-            self.respond("450 Can't APPE while REST request is pending.")
+            self.respond("450 REST请求挂起时无法APPE。")
         else:
             return self.ftp_STOR(file, mode='a')
 
     def ftp_REST(self, line):
         """Restart a file transfer from a previous mark."""
         if self._current_type == 'a':
-            self.respond('501 Resuming transfers not allowed in ASCII mode.')
+            self.respond('501 在ASCII模式下不允许恢复传输。')
             return
         try:
             marker = int(line)
             if marker < 0:
                 raise ValueError
         except (ValueError, OverflowError):
-            self.respond("501 Invalid parameter.")
+            self.respond("501 无效的参数。")
         else:
-            self.respond(f"350 Restarting at position {marker}.")
+            self.respond(f"350 在此重新开始 {marker}.")
             self._restart_position = marker
 
     def ftp_ABOR(self, line):
@@ -2674,7 +2682,7 @@ class FTPHandler(AsyncChat):
             and self._dtp_connector is None
             and self.data_channel is None
         ):
-            self.respond("225 No transfer to abort.")
+            self.respond("225 没有传输可被终止。")
             return
         else:
             # a PASV or PORT was received but connection wasn't made yet
@@ -2683,7 +2691,7 @@ class FTPHandler(AsyncChat):
                 or self._dtp_connector is not None
             ):
                 self._shutdown_connecting_dtp()
-                resp = "225 ABOR command successful; data channel closed."
+                resp = "225 ABOR 成功；数据通道关闭。"
 
             # If a data transfer is in progress the server must first
             # close the data connection, returning a 426 reply to
@@ -2697,13 +2705,13 @@ class FTPHandler(AsyncChat):
                     self.data_channel.close()
                     self.data_channel = None
                     self.respond(
-                        "426 Transfer aborted via ABOR.", logfun=logger.info
+                        "426 通过 ABOR 终止传输。", logfun=logger.info
                     )
-                    resp = "226 ABOR command successful."
+                    resp = "226 ABOR 命令成功。"
                 else:
                     self.data_channel.close()
                     self.data_channel = None
-                    resp = "225 ABOR command successful; data channel closed."
+                    resp = "225 ABOR 命令成功。数据通道关闭。"
         self.respond(resp)
 
         # --- authentication
@@ -2718,15 +2726,15 @@ class FTPHandler(AsyncChat):
         # the USER command and then reject the combination of username
         # and password for an invalid username when PASS is provided later.
         if not self.authenticated:
-            self.respond('331 Username ok, send password.')
+            self.respond('331 用户名OK, 发送密码。')
         else:
             # a new USER command could be entered at any point in order
             # to change the access control flushing any user, password,
             # and account information already supplied and beginning the
             # login sequence again.
             self.flush_account()
-            msg = 'Previous account information was flushed'
-            self.respond(f'331 {msg}, send password.', logfun=logger.info)
+            msg = '先前的帐户信息被刷新'
+            self.respond(f'331 {msg}, 发送密码。', logfun=logger.info)
         self.username = line
 
     def handle_auth_failed(self, msg, password):
@@ -2735,7 +2743,7 @@ class FTPHandler(AsyncChat):
             if hasattr(self, '_closed') and not self._closed:
                 self.attempted_logins += 1
                 if self.attempted_logins >= self.max_login_attempts:
-                    msg += " Disconnecting."
+                    msg += " 断开连接。"
                     self.respond("530 " + msg)
                     self.close_when_done()
                 else:
@@ -2746,9 +2754,9 @@ class FTPHandler(AsyncChat):
         self.del_channel()
         if not msg:
             if self.username == 'anonymous':
-                msg = "Anonymous access not allowed."
+                msg = "不允许匿名访问。"
             else:
-                msg = "Authentication failed."
+                msg = "身份验证失败。"
         else:
             # response string should be capitalized as per RFC-959
             msg = msg.capitalize()
@@ -2779,10 +2787,10 @@ class FTPHandler(AsyncChat):
     def ftp_PASS(self, line):
         """Check username's password against the authorizer."""
         if self.authenticated:
-            self.respond("503 User already authenticated.")
+            self.respond("503 用户已通过身份验证。")
             return
         if not self.username:
-            self.respond("503 Login with USER first.")
+            self.respond("503 请先以 USER 用户名登入。")
             return
 
         if len(line) > 0 :
@@ -2808,7 +2816,7 @@ class FTPHandler(AsyncChat):
         self.flush_account()
         # Note: RFC-959 erroneously mention "220" as the correct response
         # code to be given in this case, but this is wrong...
-        self.respond("230 Ready for new user.")
+        self.respond("230 为新用户准备好了。")
 
         # --- filesystem operations
 
@@ -2873,11 +2881,11 @@ class FTPHandler(AsyncChat):
 
         line = self.fs.fs2ftp(path)
         if self._current_type == 'a':
-            why = "SIZE not allowed in ASCII mode"
+            why = "在ASCII模式下不允许SIZE命令"
             self.respond(f"550 {why}.")
             return
         if not self.fs.isfile(self.fs.realpath(path)):
-            why = f"{line} is not retrievable"
+            why = f"{line} 无法找到文件"
             self.respond(f"550 {why}.")
             return
         try:
@@ -2895,7 +2903,7 @@ class FTPHandler(AsyncChat):
         """
         line = self.fs.fs2ftp(path)
         if not self.fs.isfile(self.fs.realpath(path)):
-            self.respond(f"550 {line} is not retrievable")
+            self.respond(f"550 {line} 无法找到文件")
             return
         timefunc = time.gmtime if self.use_gmt_times else time.localtime
         try:
@@ -2905,7 +2913,7 @@ class FTPHandler(AsyncChat):
             if isinstance(err, ValueError):
                 # It could happen if file's last modification time
                 # happens to be too old (prior to year 1900)
-                why = "Can't determine file's last modification time"
+                why = "无法确定文件的最后修改时间"
             else:
                 why = _strerror(err)
             self.respond(f'550 {why}.')
@@ -2926,11 +2934,11 @@ class FTPHandler(AsyncChat):
         line = self.fs.fs2ftp(path)
 
         if len(timeval) != len("YYYYMMDDHHMMSS"):
-            why = "Invalid time format; expected: YYYYMMDDHHMMSS"
+            why = "无效的时间格式；要求格式: YYYYMMDDHHMMSS"
             self.respond(f'550 {why}.')
             return
         if not self.fs.isfile(self.fs.realpath(path)):
-            self.respond(f"550 {line} is not retrievable")
+            self.respond(f"550 {line} 无法找到文件")
             return
         timefunc = time.gmtime if self.use_gmt_times else time.localtime
         try:
@@ -2939,7 +2947,7 @@ class FTPHandler(AsyncChat):
             timeval_datetime_obj = datetime.strptime(timeval, '%Y%m%d%H%M%S')
             timeval_secs = (timeval_datetime_obj - epoch).total_seconds() + 8 * 3600 # UTC+8
         except ValueError:
-            why = "Invalid time format; expected: YYYYMMDDHHMMSS"
+            why = "无效的时间格式；要求格式: YYYYMMDDHHMMSS"
             self.respond(f'550 {why}.')
             return
         try:
@@ -2952,7 +2960,7 @@ class FTPHandler(AsyncChat):
             if isinstance(err, ValueError):
                 # It could happen if file's last modification time
                 # happens to be too old (prior to year 1900)
-                why = "Can't determine file's last modification time"
+                why = "无法确定文件的最后修改时间"
             else:
                 why = _strerror(err)
             self.respond(f'550 {why}.')
@@ -2984,7 +2992,7 @@ class FTPHandler(AsyncChat):
         On success return the directory path, else None.
         """
         if self.fs.realpath(path) == self.fs.realpath(self.fs.root):
-            msg = "Can't remove root directory."
+            msg = "无法删除根目录。"
             self.respond(f"550 {msg}")
             return
         try:
@@ -2993,7 +3001,7 @@ class FTPHandler(AsyncChat):
             why = _strerror(err)
             self.respond(f'550 {why}.')
         else:
-            self.respond("250 Directory removed.")
+            self.respond("250 目录已删除。")
 
     def ftp_DELE(self, path):
         """Delete the specified file.
@@ -3005,19 +3013,19 @@ class FTPHandler(AsyncChat):
             why = _strerror(err)
             self.respond(f'550 {why}.')
         else:
-            self.respond("250 File removed.")
+            self.respond("250 文件已删除。")
             return path
 
     def ftp_RNFR(self, path):
         """Rename the specified (only the source name is specified
         here, see RNTO command)."""
         if not self.fs.lexists(path):
-            self.respond("550 No such file or directory.")
+            self.respond("550 没有该文件或目录。")
         elif self.fs.realpath(path) == self.fs.realpath(self.fs.root):
-            self.respond("550 Can't rename home directory.")
+            self.respond("550 不能重命名根目录。")
         else:
             self._rnfr = path
-            self.respond("350 Ready for destination name.")
+            self.respond("350 准备好目标名称。")
 
     def ftp_RNTO(self, path):
         """Rename file (destination name only, source is specified with
@@ -3025,7 +3033,7 @@ class FTPHandler(AsyncChat):
         On success return a (source_path, destination_path) tuple.
         """
         if not self._rnfr:
-            self.respond("503 Bad sequence of commands: use RNFR first.")
+            self.respond("503 错误的命令序列: 请先使用RNFR。")
             return
         src = self._rnfr
         self._rnfr = None
@@ -3035,7 +3043,7 @@ class FTPHandler(AsyncChat):
             why = _strerror(err)
             self.respond(f'550 {why}.')
         else:
-            self.respond("250 Renaming ok.")
+            self.respond("250 重命名完毕。")
             return (src, path)
 
         # --- others
@@ -3044,19 +3052,19 @@ class FTPHandler(AsyncChat):
         """Set current type data type to binary/ascii."""
         type = line.upper().replace(' ', '')
         if type in ("A", "L7"):
-            self.respond("200 Type set to: ASCII.")
+            self.respond("200 类型设置为: ASCII.")
             self._current_type = 'a'
         elif type in ("I", "L8"):
-            self.respond("200 Type set to: Binary.")
+            self.respond("200 类型设置为: Binary.")
             self._current_type = 'i'
         else:
-            self.respond(f'504 Unsupported type "{line}".')
+            self.respond(f'504 不支持的类型 "{line}".')
 
     def ftp_STRU(self, line):
         """Set file structure ("F" is the only one supported (noop))."""
         stru = line.upper()
         if stru == 'F':
-            self.respond('200 File transfer structure set to: F.')
+            self.respond('200 文件传输结构设置为: F')
         elif stru in ('P', 'R'):
             # R is required in minimum implementations by RFC-959, 5.1.
             # RFC-1123, 4.1.2.13, amends this to only apply to servers
@@ -3068,19 +3076,19 @@ class FTPHandler(AsyncChat):
             # the same.
             #
             # RFC-1123 recommends against implementing P.
-            self.respond('504 Unimplemented STRU type.')
+            self.respond('504 未实现的STRU类型。')
         else:
-            self.respond('501 Unrecognized STRU type.')
+            self.respond('501 无法识别的STRU类型。')
 
     def ftp_MODE(self, line):
         """Set data transfer mode ("S" is the only one supported (noop))."""
         mode = line.upper()
         if mode == 'S':
-            self.respond('200 Transfer mode set to: S')
+            self.respond('200 传输模式设置为: S')
         elif mode in ('B', 'C'):
-            self.respond('504 Unimplemented MODE type.')
+            self.respond('504 未实现的 MODE 类型。')
         else:
-            self.respond('501 Unrecognized MODE type.')
+            self.respond('501 无法识别的 MODE 类型。')
 
     def ftp_STAT(self, path):
         """Return statistics about current ftp session. If an argument
@@ -3129,7 +3137,7 @@ class FTPHandler(AsyncChat):
 
             self.push('211-FTP server status:\r\n')
             self.push(''.join([f' {item}\r\n' for item in s]))
-            self.respond('211 End of status.')
+            self.respond('211 状态结束。')
         # return directory LISTing over the command channel
         else:
             line = self.fs.fs2ftp(path)
@@ -3151,7 +3159,7 @@ class FTPHandler(AsyncChat):
             else:
                 self.push(f'213-Status of "{line}":\r\n')
                 self.push_with_producer(BufferedIteratorProducer(iterator))
-                self.respond('213 End of status.')
+                self.respond('213 状态结束。')
                 return path
 
     def ftp_FEAT(self, line):
@@ -3178,7 +3186,7 @@ class FTPHandler(AsyncChat):
         features = sorted(features)
         self.push("211-Features supported:\r\n")
         self.push("".join([f" {x}\r\n" for x in features]))
-        self.respond('211 End FEAT.')
+        self.respond('211 FEAT 结束。')
 
     def ftp_OPTS(self, line):
         """Specify options for FTP commands as specified in RFC-2389."""
@@ -3193,7 +3201,7 @@ class FTPHandler(AsyncChat):
                 cmd, arg = line, ''
             # actually the only command able to accept options is MLST
             if cmd.upper() != 'MLST' or 'MLST' not in self.proto_cmds:
-                raise ValueError(f'Unsupported command "{cmd}"')
+                raise ValueError(f'Unsupported command [{cmd}]')
         except ValueError as err:
             self.respond(f'501 {err}.')
         else:
@@ -3206,7 +3214,7 @@ class FTPHandler(AsyncChat):
 
     def ftp_NOOP(self, line):
         """Do nothing."""
-        self.respond("200 I successfully did nothing'.")
+        self.respond("200 空操作")
 
     def ftp_SYST(self, line):
         """Return system type (always returns UNIX type: L8)."""
@@ -3215,12 +3223,12 @@ class FTPHandler(AsyncChat):
         # the system names listed in RFC-943.
         # Since that we always return a "/bin/ls -lA"-like output on
         # LIST we  prefer to respond as if we would on Unix in any case.
-        self.respond("215 UNIX Type: L8")
+        self.respond("215 UNIX 类型: L8")
 
     def ftp_ALLO(self, line):
         """Allocate bytes for storage (noop)."""
         # not necessary (always respond with 202)
-        self.respond("202 No storage allocation necessary.")
+        self.respond("202 不需要存储分配。")
 
     def ftp_HELP(self, line):
         """Return help text to the client."""
@@ -3229,7 +3237,7 @@ class FTPHandler(AsyncChat):
             if line in self.proto_cmds:
                 self.respond(f"214 {self.proto_cmds[line]['help']}")
             else:
-                self.respond("501 Unrecognized command.")
+                self.respond("501 无法识别的命令。")
         else:
             # provide a compact list of recognized commands
             def formatted_help():
@@ -3245,7 +3253,7 @@ class FTPHandler(AsyncChat):
 
             self.push("214-The following commands are recognized:\r\n")
             self.push(formatted_help())
-            self.respond("214 Help command successful.")
+            self.respond("214 Help 命令成功。")
 
         # --- site commands
 
@@ -3265,7 +3273,7 @@ class FTPHandler(AsyncChat):
                 assert 0 <= int(x) <= 7
             mode = int(mode, 8)
         except (AssertionError, ValueError):
-            self.respond("501 Invalid SITE CHMOD format.")
+            self.respond("501 SITE CHMOD格式无效。")
         else:
             try:
                 self.run_as_current_user(self.fs.chmod, path, mode)
@@ -3273,7 +3281,7 @@ class FTPHandler(AsyncChat):
                 why = _strerror(err)
                 self.respond(f'550 {why}.')
             else:
-                self.respond('200 SITE CHMOD successful.')
+                self.respond('200 SITE CHMOD 成功。')
                 return (path, mode)
 
     def ftp_SITE_HELP(self, line):
@@ -3283,7 +3291,7 @@ class FTPHandler(AsyncChat):
             if line in self.proto_cmds:
                 self.respond(f"214 {self.proto_cmds[line]['help']}")
             else:
-                self.respond("501 Unrecognized SITE command.")
+                self.respond("501 无法识别的SITE命令。")
         else:
             self.push("214-The following SITE commands are recognized:\r\n")
             site_cmds = []
@@ -3291,7 +3299,7 @@ class FTPHandler(AsyncChat):
                 if cmd.startswith('SITE '):
                     site_cmds.append(f' {cmd[5:]}\r\n')
             self.push(''.join(site_cmds))
-            self.respond("214 Help SITE command successful.")
+            self.respond("214 Help SITE 成功。")
 
         # --- support for deprecated cmds
 
@@ -3862,16 +3870,16 @@ if SSL is not None:
             """Set up secure control channel."""
             arg = line.upper()
             if isinstance(self.socket, SSL.Connection):
-                self.respond("503 Already using TLS.")
+                self.respond("503 已经在使用TLS。")
             elif arg in ('TLS', 'TLS-C', 'SSL', 'TLS-P'):
                 # From RFC-4217: "As the SSL/TLS protocols self-negotiate
                 # their levels, there is no need to distinguish between SSL
                 # and TLS in the application layer".
-                self.respond(f'234 AUTH {arg} successful.')
+                self.respond(f'234 AUTH {arg} 成功。')
                 self.secure_connection(self.ssl_context)
             else:
                 self.respond(
-                    "502 Unrecognized encryption type (use TLS or SSL)."
+                    "502 无法识别的加密类型(建议使用TLS或SSL)。"
                 )
 
         def ftp_PBSZ(self, line):
@@ -3881,7 +3889,7 @@ if SSL is not None:
             """
             if not isinstance(self.socket, SSL.Connection):
                 self.respond(
-                    "503 PBSZ not allowed on insecure control connection."
+                    "503 不允许在不安全控制连接上使用PBSZ。"
                 )
             else:
                 self.respond('200 PBSZ=0 successful.')
@@ -3892,19 +3900,19 @@ if SSL is not None:
             arg = line.upper()
             if not isinstance(self.socket, SSL.Connection):
                 self.respond(
-                    "503 PROT not allowed on insecure control connection."
+                    "503 在不安全的控制连接上不允许使用PROT命令。"
                 )
             elif not self._pbsz:
                 self.respond(
-                    "503 You must issue the PBSZ command prior to PROT."
+                    "503 您必须在PROT之前发出PBSZ命令。"
                 )
             elif arg == 'C':
-                self.respond('200 Protection set to Clear')
+                self.respond('200 保护设置已清除')
                 self._prot = False
             elif arg == 'P':
-                self.respond('200 Protection set to Private')
+                self.respond('200 保护设置已设为私有')
                 self._prot = True
             elif arg in ('S', 'E'):
-                self.respond(f'521 PROT {arg} unsupported (use C or P).')
+                self.respond(f'521 PROT {arg} 不支持 (建议使用 C or P).')
             else:
-                self.respond("502 Unrecognized PROT type (use C or P).")
+                self.respond("502 无法识别的PROT类型 (建议使用 C or P).")
