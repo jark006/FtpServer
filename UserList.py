@@ -68,7 +68,7 @@ class UserList:
             return input
 
     def readAllLines(self) -> list[str]:
-        for encoding in ['utf-8', 'gbk']:
+        for encoding in ['utf-8-sig', 'gbk']:
             try:
                 with open(self.savePath, 'r', encoding=encoding) as file:
                     allLines = file.read().splitlines()
