@@ -73,6 +73,8 @@ def showHelp():
 
 ==== FTPS 配置 ====
 
+本软件默认使用 FTP 明文传输数据，如果数据比较敏感，或者网络环境不安全，则可以按以下步骤开启 FTPS 加密传输数据。
+
 在 "Linux" 或 "MinGW64" 终端使用 "openssl" (命令如下，需填入一些简单信息: 地区/名字/Email等)生成SSL证书文件(ftpServer.key和ftpServer.crt), "不要重命名"文件为其他名称。
 
 openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
@@ -84,6 +86,8 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
 
 ==== 多用户配置 ====
 
+一般单人使用时，只需在软件主页面设置用户名和密码即可。如果需要开放给多人使用，可以按以下步骤建立多个用户，分配不同的读写权限和根目录。
+
 在主程序所在目录新建文件 "FtpServerUserList.csv" , 使用 "Excel"或文本编辑器(需熟悉csv文件格式)编辑, 一行一个配置: 
 第一列: 用户名, 限定英文大小写/数字。
 第二列: 密码, 限定英文大小写/数字/符号。
@@ -93,7 +97,7 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
 详细权限配置: 
 使用 "readonly" 或 "只读" 设置为 "只读权限"。
 使用 "readwrite" 或 "读写" 设置为 "读写权限"。
-使用 "自定义" 权限设置, 从以下权限挑选自行组合(注意大小写): 
+使用 "自定义" 权限设置, 从以下权限挑选自行组合(注意大小写)。
 
 参考链接: https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
 
