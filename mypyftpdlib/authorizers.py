@@ -246,7 +246,6 @@ class DummyAuthorizer:
                 and p in self.write_perms
                 and not warned
             ):
-                print("\n警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。\n建议给匿名方式选择【只读】权限。\n")
                 warned = 1
 
     def _issubpath(self, a, b):

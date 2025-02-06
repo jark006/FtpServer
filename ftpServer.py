@@ -22,18 +22,18 @@ from functools import reduce
 # 打包 单文件 隐藏终端窗口
 # pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
 # pyinstaller.exe .\ftpServer.spec
-# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.22.0.0 --product-version=1.22.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2024 Github@JARK006"
+# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.23.0.0 --product-version=1.23.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
 
 
 appLabel = "FTP文件服务器"
-appVersion = "v1.22"
+appVersion = "v1.23"
 appAuthor = "JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 releaseLink = "https://github.com/jark006/FtpServer/releases"
 quarkLink = "https://pan.quark.cn/s/fb740c256653"
 baiduLink = "https://pan.baidu.com/s/1955qjdrnPtxhNhtksjqvfg?pwd=6666"
 windowsTitle = f"{appLabel} {appVersion}"
-tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。若无需开启IPv6只需将其端口设为0即可, IPv4同理。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning: bool = True
@@ -247,6 +247,8 @@ def updateSettingVars():
     global isReadOnlyVar
     global isGBKVar
     global isAutoStartServerVar
+    global isIPv4Supported
+    global isIPv6Supported
 
     settings.directoryList = list(directoryCombobox["value"])
     if len(settings.directoryList) > 0:
@@ -276,7 +278,7 @@ def updateSettingVars():
 
     try:
         IPv4PortInt = int(IPv4PortVar.get())
-        if 0 < IPv4PortInt and IPv4PortInt < 65536:
+        if 0 <= IPv4PortInt and IPv4PortInt < 65536:
             settings.IPv4Port = IPv4PortInt
         else:
             raise
@@ -291,7 +293,7 @@ def updateSettingVars():
 
     try:
         IPv6PortInt = int(IPv6PortVar.get())
-        if 0 < IPv6PortInt and IPv6PortInt < 65536:
+        if 0 <= IPv6PortInt and IPv6PortInt < 65536:
             settings.IPv6Port = IPv6PortInt
         else:
             raise
@@ -327,6 +329,9 @@ def ip_into_int(ip_str: str) -> int:
 
 # https://blog.mimvp.com/article/32438.html
 def is_internal_ip(ip_str: str) -> bool:
+    if ip_str.startswith("169.254."):
+        return True
+
     ip_int = ip_into_int(ip_str)
     net_A = 10  # ip_into_int("10.255.255.255") >> 24
     net_B = 2753  # ip_into_int("172.31.255.255") >> 20
@@ -382,6 +387,9 @@ def startServer():
             messagebox.showerror("密码异常", tips)
             print(tips)
             return
+        if (settings.userName == "anonymous" or len(settings.userName) == 0) and settings.isReadOnly == False:
+            print("警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。")
+            print("若是安全的内网环境可忽略以上警告，否则【匿名用户】应当选择【只读】权限。")
     else:
         userNameEntry.configure(state=tkinter.DISABLED)
         userPasswordEntry.configure(state=tkinter.DISABLED)
@@ -408,11 +416,11 @@ def startServer():
         )
 
     try:
-        if isIPv4Supported:
+        if isIPv4Supported and settings.IPv4Port > 0:
             serverThreadV4 = threading.Thread(target=serverThreadFunV4)
             serverThreadV4.start()
 
-        if isIPv6Supported:
+        if isIPv6Supported and settings.IPv6Port > 0:
             serverThreadV6 = threading.Thread(target=serverThreadFunV6)
             serverThreadV6.start()
     except Exception as e:
@@ -557,14 +565,14 @@ def closeServer():
     global isIPv4Supported
     global isIPv6Supported
 
-    if isIPv4Supported:
+    if isIPv4Supported and settings.IPv4Port > 0:
         if isIPv4ThreadRunning:
             print("[FTP IPv4] 正在关闭...")
             serverV4.close_all()  # 注意: 这也会关闭serverV6的所有连接
             serverThreadV4.join()
         print("[FTP IPv4] 线程已关闭")
 
-    if isIPv6Supported:
+    if isIPv6Supported and settings.IPv6Port > 0:
         if isIPv6ThreadRunning:
             print("[FTP IPv6] 正在关闭...")
             serverV6.close_all()
@@ -668,7 +676,7 @@ def getTipsAndUrlList():
     IPv6FtpUrlList = []
     for item in addrs:
         ipStr = item[4][0]
-        if ":" in ipStr:  # IPv6
+        if (settings.IPv6Port > 0) and (":" in ipStr):  # IPv6
             fullUrl = f"ftp://[{ipStr}]" + (
                 "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
             )
@@ -683,7 +691,7 @@ def getTipsAndUrlList():
                 IPv6IPstr += f"\n[IPv6 移动/铁通网] {fullUrl}"
             else:
                 IPv6IPstr += f"\n[IPv6 公网] {fullUrl}"
-        elif "." in ipStr:  # IPv4
+        elif (settings.IPv4Port > 0) and ("." in ipStr):  # IPv4
             fullUrl = f"ftp://{ipStr}" + (
                 "" if settings.IPv4Port == 21 else (f":{settings.IPv4Port}")
             )

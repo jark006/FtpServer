@@ -19,7 +19,7 @@ class Settings:
         self.userName: str = "JARK006"
         self.userPassword: str = "123456"
         self.IPv4Port: int = 21
-        self.IPv6Port: int = 21
+        self.IPv6Port: int = 0
         self.isGBK: bool = True
         self.isReadOnly: bool = True
         self.isAutoStartServer: bool = False
@@ -76,7 +76,7 @@ class Settings:
                 self.IPv4Port = 21
                 print(f"IPv4Port 类型错误，已恢复默认：{self.IPv4Port}")
             if not type(self.IPv6Port) is int:
-                self.IPv6Port = 21
+                self.IPv6Port = 0
                 print(f"IPv6Port 类型错误，已恢复默认：{self.IPv6Port}")
             if not type(self.isGBK) is bool:
                 self.isGBK = True
