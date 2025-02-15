@@ -277,7 +277,7 @@ def updateSettingVars():
         userPasswordVar.set("******")
 
     try:
-        IPv4PortInt = int(IPv4PortVar.get())
+        IPv4PortInt = (0 if IPv4PortVar.get() == "" else int(IPv4PortVar.get()))
         if 0 <= IPv4PortInt and IPv4PortInt < 65536:
             settings.IPv4Port = IPv4PortInt
         else:
@@ -292,7 +292,7 @@ def updateSettingVars():
         IPv4PortVar.set("21")
 
     try:
-        IPv6PortInt = int(IPv6PortVar.get())
+        IPv6PortInt = (0 if IPv6PortVar.get() == "" else int(IPv6PortVar.get()))
         if 0 <= IPv6PortInt and IPv6PortInt < 65536:
             settings.IPv6Port = IPv6PortInt
         else:
@@ -397,8 +397,8 @@ def startServer():
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
     if len(ftpUrlList) == 0:
-        tips: str = "!!! 本机没有检测到网络IP, 请检查网络连接, 或稍后重试 !!!"
-        messagebox.showerror("网络异常", tips)
+        tips: str = "!!! 本机没有检测到网络IP, 请检查端口设置或网络连接, 或稍后重试 !!!"
+        messagebox.showerror("网络或端口设置异常", tips)
         print(tips)
         return
 
@@ -416,13 +416,23 @@ def startServer():
         )
 
     try:
+        hasStartServer: bool = False
         if isIPv4Supported and settings.IPv4Port > 0:
             serverThreadV4 = threading.Thread(target=serverThreadFunV4)
             serverThreadV4.start()
+            hasStartServer = True
 
         if isIPv6Supported and settings.IPv6Port > 0:
             serverThreadV6 = threading.Thread(target=serverThreadFunV6)
             serverThreadV6.start()
+            hasStartServer = True
+
+        if not hasStartServer:
+            tips: str = "!!! 未检测到有效端口, 服务无法启动, 请检查端口设置是否正确 !!!"
+            messagebox.showerror("端口异常", tips)
+            print(tips)
+            return
+
     except Exception as e:
         tips: str = f"!!! 发生异常, 无法启动线程 !!!\n{e}"
         messagebox.showerror("启动异常", tips)
@@ -869,8 +879,8 @@ def main():
 
     userNameVar.set(settings.userName)
     userPasswordVar.set("******" if len(settings.userPassword) > 0 else "")
-    IPv4PortVar.set(str(settings.IPv4Port))
-    IPv6PortVar.set(str(settings.IPv6Port))
+    IPv4PortVar.set("" if settings.IPv4Port == 0 else str(settings.IPv4Port))
+    IPv6PortVar.set("" if settings.IPv6Port == 0 else str(settings.IPv6Port))
     isGBKVar.set(settings.isGBK)
     isReadOnlyVar.set(settings.isReadOnly)
     isAutoStartServerVar.set(settings.isAutoStartServer)
