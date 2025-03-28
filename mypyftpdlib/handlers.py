@@ -2131,7 +2131,7 @@ class FTPHandler(AsyncChat):
             elif elapsed < 60.0:
                 return f"{int(elapsed)}秒"
             else:
-                return f"{(int(elapsed)/60)}分{(int(elapsed)%60)}秒"
+                return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
 
         def completedStr(completed: bool) -> str:
             return "成功" if completed else "失败"

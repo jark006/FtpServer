@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/github/v/release/jark006/ftpServer)](https://github.com/jark006/FtpServer/releases/latest) [![Stars](https://img.shields.io/github/stars/jark006/ftpServer)](https://github.com/jark006/FtpServer/stargazers) [![License](https://img.shields.io/github/license/jark006/ftpServer)](https://github.com/jark006/FtpServer/blob/main/LICENSE) [![Issues](https://img.shields.io/github/issues/jark006/ftpServer)](https://github.com/jark006/FtpServer/issues)
 
-一键开启FTP文件服务器，方便其他设备通过网络传输、管理文件，支持IPv4，IPv6。
+一键开启FTP文件服务器，方便其他设备通过网络传输、管理文件，支持IPv4/IPv6、多用户、FTPS。
 
 ---
 
@@ -37,14 +37,14 @@ Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `W
 
 **📇 样例**
 
-|           |        |           |              |
-| --------- | ------ | --------- | ------------ |
-| JARK006   | 123456 | readonly  | D:\Downloads |
-| JARK007   | 456789 | readwrite | D:\Data      |
-| JARK008   | abc123 | 只读      | D:\FtpRoot   |
-| JARK009   | abc456 | elradfmwMT| D:\FtpRoot   |
-| anonymous |        | elr       | D:\FtpRoot   |
-| ...       |        |           |              |
+|           |        |            |              |
+| --------- | ------ | ---------- | ------------ |
+| JARK006   | 123456 | readonly   | D:\Downloads |
+| JARK007   | 456789 | readwrite  | D:\Data      |
+| JARK008   | abc123 | 只读       | D:\FtpRoot   |
+| JARK009   | abc456 | elradfmwMT | D:\FtpRoot   |
+| anonymous |        | elr        | D:\FtpRoot   |
+| ...       |        |            |              |
 
 注： anonymous 是匿名用户，允许不设密码，其他用户必须设置密码。
 

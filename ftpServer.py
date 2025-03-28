@@ -33,7 +33,7 @@ releaseLink = "https://github.com/jark006/FtpServer/releases"
 quarkLink = "https://pan.quark.cn/s/fb740c256653"
 baiduLink = "https://pan.baidu.com/s/1955qjdrnPtxhNhtksjqvfg?pwd=6666"
 windowsTitle = f"{appLabel} {appVersion}"
-tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。若无需开启IPv6只需将其端口设为0即可, IPv4同理。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
+tipsTitle = "若用户名空白则默认匿名访问(anonymous)。若中文乱码则需更换编码方式, 再重启服务。若无需开启IPv6只需将其端口留空即可, IPv4同理。请设置完后再开启服务。若需FTPS或多用户配置, 请点击“帮助”按钮查看使用说明。以下为本机所有IP地址(含所有物理网卡/虚拟网卡), 右键可复制。\n"
 
 logMsg = queue.Queue()
 logThreadrunning: bool = True
