@@ -4,7 +4,7 @@
 
 一键开启FTP文件服务器，方便其他设备通过网络传输、管理文件，支持IPv4/IPv6、多用户、FTPS。
 
----
+![](preview.png)
 
 ## 🔐 FTPS 配置
 
@@ -87,9 +87,3 @@ Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `W
 2. [tkinter](https://docs.python.org/3/library/tkinter.html)
 3. [pystray](https://github.com/moses-palmer/pystray)
 4. [Pillow](https://github.com/python-pillow/Pillow)
-
----
-
-## 🖼️ 预览
-
-![](preview.png)

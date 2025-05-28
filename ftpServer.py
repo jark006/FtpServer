@@ -455,7 +455,7 @@ def startServer():
         )
     else:
         userList.print()
-        print("编码: {}\n".format("GBK" if settings.isGBK else "UTF-8"))
+        print(f"编码: {'GBK' if settings.isGBK else 'UTF-8'}\n")
 
 
 def serverThreadFunV4():
@@ -685,13 +685,13 @@ def getTipsAndUrlList():
     IPv4FtpUrlList = []
     IPv6FtpUrlList = []
     for item in addrs:
-        ipStr = item[4][0]
+        ipStr = str(item[4][0])
         if (settings.IPv6Port > 0) and (":" in ipStr):  # IPv6
             fullUrl = f"ftp://[{ipStr}]" + (
                 "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
             )
             IPv6FtpUrlList.append(fullUrl)
-            if ipStr[:4] == "fe80" or ipStr[:4] == "fd00":
+            if ipStr.startswith(('fe80', 'fd00')):
                 IPv6IPstr += f"\n[IPv6 局域网] {fullUrl}"
             elif ipStr[:4] == "240e":
                 IPv6IPstr += f"\n[IPv6 电信公网] {fullUrl}"
