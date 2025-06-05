@@ -71,8 +71,7 @@ class UserList:
         for encoding in ['utf-8-sig', 'gbk']:
             try:
                 with open(self.savePath, 'r', encoding=encoding) as file:
-                    allLines = file.read().splitlines()
-                    return allLines
+                    return file.read().splitlines()
             except:
                 continue
         print(f"无法使用UTF-8或GBK编码读取文件 {self.savePath}")

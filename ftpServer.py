@@ -1,28 +1,62 @@
-import socket, sys, os, queue, time, base64, threading, ctypes, webbrowser, pystray
+"""
+FTP Server with GUI Interface
+一个带图形界面的FTP服务器
 
+Author: JARK006
+Email: jark006@qq.com
+Github: https://github.com/jark006
+Project: https://github.com/jark006/FtpServer
+License: MIT License
+Copyright (c) 2025 JARK006
+
+# 打包工具
+    pip install pyinstaller nuitka
+
+# 第三方库需求
+    pip install Pillow pypiwin32 pystray pyopenssl pyasynchat
+
+# 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
+    openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
+
+# 打包 单文件 隐藏终端窗口 以下三选一
+    pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
+    pyinstaller.exe .\ftpServer.spec
+    python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.23.0.0 --product-version=1.23.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
+
+"""
+
+
+# 标准库导入
+import os
+import io
+import sys
+import time
+import queue
+import base64
+import socket
+import ctypes
+import threading
+import webbrowser
+import functools
+
+# 第三方库导入
+import pystray
+import win32con
+import win32clipboard
+from PIL import Image, ImageTk
+
+# GUI相关导入
+import tkinter as tk
+from tkinter import ttk, scrolledtext, filedialog, messagebox, font
+
+# 本地模块导入
 import Settings
 import UserList
-import win32clipboard
-import win32con
-import tkinter
 
-from tkinter import ttk, scrolledtext, filedialog, messagebox, font
+# 汉化 pyftpdlib 模块导入
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
-from PIL import ImageTk, Image
-from io import BytesIO
-from functools import reduce
-
-# pip install Pillow pypiwin32 pyinstaller nuitka pystray pyopenssl pyasynchat
-
-# 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
-# $> openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
-
-# 打包 单文件 隐藏终端窗口
-# pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
-# pyinstaller.exe .\ftpServer.spec
-# python -m nuitka --standalone --onefile --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --company-name=JARK006 --product-name=ftpServer --file-version=1.23.0.0 --product-version=1.23.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
 
 
 appLabel = "FTP文件服务器"
@@ -132,19 +166,19 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
 4. 配置文件可以是UTF-8或GBK编码。
 """
 
-    helpWindows = tkinter.Toplevel(window)
+    helpWindows = tk.Toplevel(window)
     helpWindows.geometry(f"{scale(600)}x{scale(500)}")
     helpWindows.resizable(False, False)
     helpWindows.title("帮助")
-    helpWindows.iconphoto(False, iconImage)
+    helpWindows.iconphoto(False, iconImage)  # type: ignore
     helpTextWidget = scrolledtext.ScrolledText(
-        helpWindows, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
+        helpWindows, bg="#dddddd", wrap=tk.CHAR, font=uiFont
     )
-    helpTextWidget.insert(tkinter.INSERT, helpTips)
-    helpTextWidget.configure(state=tkinter.DISABLED)
+    helpTextWidget.insert(tk.INSERT, helpTips)
+    helpTextWidget.configure(state=tk.DISABLED)
     helpTextWidget.place(x=0, y=0, width=scale(600), height=scale(500))
 
-    menu = tkinter.Menu(window, tearoff=False)
+    menu = tk.Menu(window, tearoff=False)
     menu.add_command(
         label="复制",
         command=lambda event=None: helpTextWidget.event_generate("<<Copy>>"),
@@ -158,35 +192,35 @@ def showAbout():
     global window
     global iconImage
 
-    aboutWindows = tkinter.Toplevel(window)
+    aboutWindows = tk.Toplevel(window)
     aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
     aboutWindows.resizable(False, False)
     aboutWindows.title("关于")
-    aboutWindows.iconphoto(False, iconImage)
+    aboutWindows.iconphoto(False, iconImage)  # type: ignore
 
-    tkinter.Label(aboutWindows, image=iconImage).place(
+    tk.Label(aboutWindows, image=iconImage).place(
         x=scale(0), y=scale(0), width=scale(100), height=scale(100)
     )
-    tkinter.Label(
+    tk.Label(
         aboutWindows,
         text=f"{appLabel} {appVersion}",
         font=font.Font(font=("Consolas", scale(12))),
     ).place(x=scale(100), y=scale(0), width=scale(300), height=scale(70))
 
-    tkinter.Label(aboutWindows, text=f"开发者: {appAuthor}").place(
+    tk.Label(aboutWindows, text=f"开发者: {appAuthor}").place(
         x=scale(100), y=scale(60), width=scale(300), height=scale(30)
     )
 
-    tkinter.Label(aboutWindows, text="Github").place(
+    tk.Label(aboutWindows, text="Github").place(
         x=scale(20), y=scale(100), width=scale(60), height=scale(20)
     )
-    tkinter.Label(aboutWindows, text="Release").place(
+    tk.Label(aboutWindows, text="Release").place(
         x=scale(20), y=scale(120), width=scale(60), height=scale(20)
     )
-    tkinter.Label(aboutWindows, text="夸克网盘").place(
+    tk.Label(aboutWindows, text="夸克网盘").place(
         x=scale(20), y=scale(140), width=scale(60), height=scale(20)
     )
-    tkinter.Label(aboutWindows, text="百度云盘").place(
+    tk.Label(aboutWindows, text="百度云盘").place(
         x=scale(20), y=scale(160), width=scale(60), height=scale(20)
     )
 
@@ -202,9 +236,8 @@ def showAbout():
     label3.bind("<Button-1>", lambda event: webbrowser.open(quarkLink))
     label3.place(x=scale(80), y=scale(140), width=scale(320), height=scale(20))
 
-    label4 = ttk.Label(
-        aboutWindows, text=baiduLink[:30] + "... 提取码: 6666", foreground="blue"
-    )
+    baiduLinkTmp = baiduLink[:30] + "... 提取码: 6666"
+    label4 = ttk.Label(aboutWindows, text=baiduLinkTmp, foreground="blue")
     label4.bind("<Button-1>", lambda event: webbrowser.open(baiduLink))
     label4.place(x=scale(80), y=scale(160), width=scale(320), height=scale(20))
 
@@ -324,7 +357,7 @@ def copyToClipboard(text: str):
 
 
 def ip_into_int(ip_str: str) -> int:
-    return reduce(lambda x, y: (x << 8) + y, map(int, ip_str.split(".")))
+    return functools.reduce(lambda x, y: (x << 8) + y, map(int, ip_str.split(".")))
 
 
 # https://blog.mimvp.com/article/32438.html
@@ -380,8 +413,8 @@ def startServer():
 
     userList.load()
     if userList.isEmpty():
-        userNameEntry.configure(state=tkinter.NORMAL)
-        userPasswordEntry.configure(state=tkinter.NORMAL)
+        userNameEntry.configure(state=tk.NORMAL)
+        userPasswordEntry.configure(state=tk.NORMAL)
         if len(settings.userName) > 0 and len(settings.userPassword) == 0:
             tips: str = "!!! 请设置密码再启动服务 !!!"
             messagebox.showerror("密码异常", tips)
@@ -391,8 +424,8 @@ def startServer():
             print("警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。")
             print("若是安全的内网环境可忽略以上警告，否则【匿名用户】应当选择【只读】权限。")
     else:
-        userNameEntry.configure(state=tkinter.DISABLED)
-        userPasswordEntry.configure(state=tkinter.DISABLED)
+        userNameEntry.configure(state=tk.DISABLED)
+        userPasswordEntry.configure(state=tk.DISABLED)
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
 
@@ -404,12 +437,12 @@ def startServer():
 
     settings.save()
 
-    tipsTextWidget.configure(state=tkinter.NORMAL)
-    tipsTextWidget.delete("0.0", tkinter.END)
-    tipsTextWidget.insert(tkinter.INSERT, tipsStr)
-    tipsTextWidget.configure(state=tkinter.DISABLED)
+    tipsTextWidget.configure(state=tk.NORMAL)
+    tipsTextWidget.delete("0.0", tk.END)
+    tipsTextWidget.insert(tk.INSERT, tipsStr)
+    tipsTextWidget.configure(state=tk.DISABLED)
 
-    tipsTextWidgetRightClickMenu.delete(0, len(ftpUrlList))
+    tipsTextWidgetRightClickMenu.delete(0, tk.END)
     for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
             label=f"复制 {url}", command=lambda url=url: copyToClipboard(url)
@@ -490,8 +523,8 @@ def serverThreadFunV4():
 
     if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
         handler = TLS_FTPHandler
-        handler.certfile = certFilePath
-        handler.keyfile = keyFilePath
+        handler.certfile = certFilePath  # type: ignore
+        handler.keyfile = keyFilePath    # type: ignore
         handler.tls_control_required = True
         handler.tls_data_required = True
         print(
@@ -544,8 +577,8 @@ def serverThreadFunV6():
     # handler = FTPHandler
     if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
         handler = TLS_FTPHandler
-        handler.certfile = certFilePath
-        handler.keyfile = keyFilePath
+        handler.certfile = certFilePath  # type: ignore
+        handler.keyfile = keyFilePath    # type: ignore
         handler.tls_control_required = True
         handler.tls_data_required = True
         print(
@@ -658,19 +691,19 @@ def logThreadFun():
 
         logMsgBackup.append(logInfo)
         if len(logMsgBackup) > 500:
-            loggingWidget.configure(state=tkinter.NORMAL)
-            loggingWidget.delete(0.0, tkinter.END)
-            loggingWidget.configure(state=tkinter.DISABLED)
+            loggingWidget.configure(state=tk.NORMAL)
+            loggingWidget.delete(0.0, tk.END)
+            loggingWidget.configure(state=tk.DISABLED)
 
             logMsgBackup = logMsgBackup[-20:]
             logInfo = ""
             for tmp in logMsgBackup:
                 logInfo += tmp
 
-        loggingWidget.configure(state=tkinter.NORMAL)
-        loggingWidget.insert(tkinter.END, logInfo)
-        loggingWidget.see(tkinter.END)
-        loggingWidget.configure(state=tkinter.DISABLED)
+        loggingWidget.configure(state=tk.NORMAL)
+        loggingWidget.insert(tk.END, logInfo)
+        loggingWidget.see(tk.END)
+        loggingWidget.configure(state=tk.DISABLED)
 
 
 def getTipsAndUrlList():
@@ -755,11 +788,11 @@ def main():
         pystray.MenuItem("显示", showWindow, default=True),
         pystray.MenuItem("退出", handleExit),
     )
-    strayImage = Image.open(BytesIO(base64.b64decode(iconStr)))
+    strayImage = Image.open(io.BytesIO(base64.b64decode(iconStr)))
     strayIcon = pystray.Icon("icon", strayImage, windowsTitle, strayMenu)
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
-    window = tkinter.Tk()  # 实例化tk对象
+    window = tk.Tk()  # 实例化tk对象
     uiFont = font.Font(font=("Consolas"))
     window.geometry(f"{scale(600)}x{scale(500)}")
     window.resizable(False, False)
@@ -767,7 +800,7 @@ def main():
 
     window.title(windowsTitle)
     iconImage = ImageTk.PhotoImage(data=base64.b64decode(iconStr))
-    window.iconphoto(False, iconImage)
+    window.iconphoto(False, iconImage)  # type: ignore
     window.protocol("WM_DELETE_WINDOW", hideWindow)
 
     startButton = ttk.Button(window, text="开启", command=startServer)
@@ -800,14 +833,14 @@ def main():
     ttk.Label(window, text="用户").place(
         x=scale(10), y=scale(40), width=scale(30), height=scale(25)
     )
-    userNameVar = tkinter.StringVar()
+    userNameVar = tk.StringVar()
     userNameEntry = ttk.Entry(window, textvariable=userNameVar, width=scale(12))
     userNameEntry.place(x=scale(40), y=scale(40), width=scale(150), height=scale(25))
 
     ttk.Label(window, text="密码").place(
         x=scale(10), y=scale(70), width=scale(30), height=scale(25)
     )
-    userPasswordVar = tkinter.StringVar()
+    userPasswordVar = tk.StringVar()
     userPasswordEntry = ttk.Entry(
         window, textvariable=userPasswordVar, width=scale(12), show="*"
     )
@@ -818,7 +851,7 @@ def main():
     ttk.Label(window, text="IPv4端口").place(
         x=scale(200), y=scale(40), width=scale(60), height=scale(25)
     )
-    IPv4PortVar = tkinter.StringVar()
+    IPv4PortVar = tk.StringVar()
     ttk.Entry(window, textvariable=IPv4PortVar, width=scale(8)).place(
         x=scale(260), y=scale(40), width=scale(50), height=scale(25)
     )
@@ -826,12 +859,12 @@ def main():
     ttk.Label(window, text="IPv6端口").place(
         x=scale(200), y=scale(70), width=scale(60), height=scale(25)
     )
-    IPv6PortVar = tkinter.StringVar()
+    IPv6PortVar = tk.StringVar()
     ttk.Entry(window, textvariable=IPv6PortVar, width=scale(8)).place(
         x=scale(260), y=scale(70), width=scale(50), height=scale(25)
     )
 
-    isGBKVar = tkinter.BooleanVar()
+    isGBKVar = tk.BooleanVar()
     ttk.Radiobutton(window, text="UTF-8 编码", variable=isGBKVar, value=False).place(
         x=scale(315), y=scale(40), width=scale(90), height=scale(25)
     )
@@ -839,7 +872,7 @@ def main():
         x=scale(315), y=scale(70), width=scale(90), height=scale(25)
     )
 
-    isReadOnlyVar = tkinter.BooleanVar()
+    isReadOnlyVar = tk.BooleanVar()
     ttk.Radiobutton(window, text="读写", variable=isReadOnlyVar, value=False).place(
         x=scale(400), y=scale(40), width=scale(50), height=scale(25)
     )
@@ -847,7 +880,7 @@ def main():
         x=scale(400), y=scale(70), width=scale(50), height=scale(25)
     )
 
-    isAutoStartServerVar = tkinter.BooleanVar()
+    isAutoStartServerVar = tk.BooleanVar()
     ttk.Checkbutton(
         window,
         text="下次打开软件后自动\n隐藏窗口并启动服务",
@@ -857,22 +890,22 @@ def main():
     ).place(x=scale(460), y=scale(40), width=scale(160), height=scale(50))
 
     tipsTextWidget = scrolledtext.ScrolledText(
-        window, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
+        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont
     )
     tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
 
     loggingWidget = scrolledtext.ScrolledText(
-        window, bg="#dddddd", wrap=tkinter.CHAR, font=uiFont
+        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont
     )
     loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
-    loggingWidget.configure(state=tkinter.DISABLED)
+    loggingWidget.configure(state=tk.DISABLED)
 
     settings = Settings.Settings()
     userList = UserList.UserList()
     if not userList.isEmpty():
         userList.print()
-        userNameEntry.configure(state=tkinter.DISABLED)
-        userPasswordEntry.configure(state=tkinter.DISABLED)
+        userNameEntry.configure(state=tk.DISABLED)
+        userPasswordEntry.configure(state=tk.DISABLED)
 
     directoryCombobox["value"] = tuple(settings.directoryList)
     directoryCombobox.current(0)
@@ -886,10 +919,10 @@ def main():
     isAutoStartServerVar.set(settings.isAutoStartServer)
 
     tipsStr, ftpUrlList = getTipsAndUrlList()
-    tipsTextWidget.insert(tkinter.INSERT, tipsStr)
-    tipsTextWidget.configure(state=tkinter.DISABLED)
+    tipsTextWidget.insert(tk.INSERT, tipsStr)
+    tipsTextWidget.configure(state=tk.DISABLED)
 
-    tipsTextWidgetRightClickMenu = tkinter.Menu(window, tearoff=False)
+    tipsTextWidgetRightClickMenu = tk.Menu(window, tearoff=False)
     for url in ftpUrlList:
         tipsTextWidgetRightClickMenu.add_command(
             label=f"复制 {url}", command=lambda url=url: copyToClipboard(url)

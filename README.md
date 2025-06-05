@@ -1,6 +1,6 @@
 # 🖥️ FTP文件服务器
 
-[![Version](https://img.shields.io/github/v/release/jark006/ftpServer)](https://github.com/jark006/FtpServer/releases/latest) [![Stars](https://img.shields.io/github/stars/jark006/ftpServer)](https://github.com/jark006/FtpServer/stargazers) [![License](https://img.shields.io/github/license/jark006/ftpServer)](https://github.com/jark006/FtpServer/blob/main/LICENSE) [![Issues](https://img.shields.io/github/issues/jark006/ftpServer)](https://github.com/jark006/FtpServer/issues)
+[![Version](https://img.shields.io/github/v/release/jark006/ftpServer)](https://github.com/jark006/FtpServer/releases/latest) ![Download](https://img.shields.io/github/downloads/jark006/FtpServer/total) [![Stars](https://img.shields.io/github/stars/jark006/ftpServer)](https://github.com/jark006/FtpServer/stargazers) [![License](https://img.shields.io/github/license/jark006/ftpServer)](https://github.com/jark006/FtpServer/blob/main/LICENSE) ![Platform](https://img.shields.io/badge/OS-Windows%2010/11%2064%20bit-00adef.svg)
 
 一键开启FTP文件服务器，方便其他设备通过网络传输、管理文件，支持IPv4/IPv6、多用户、FTPS。
 
@@ -87,3 +87,11 @@ Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `W
 2. [tkinter](https://docs.python.org/3/library/tkinter.html)
 3. [pystray](https://github.com/moses-palmer/pystray)
 4. [Pillow](https://github.com/python-pillow/Pillow)
+
+---
+
+## ❤ 支持开发
+
+生活不易，三瓜俩枣都是心意
+
+![donate](donate.png)
