@@ -43,7 +43,7 @@ LEVEL = logging.INFO
 PREFIX = '[%(levelname)1.1s %(asctime)s]'
 PREFIX_MPROC = '[%(levelname)1.1s %(asctime)s %(process)s]'
 COLOURED = _stderr_supports_color()
-TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+TIME_FORMAT = "%H:%M:%S"
 
 
 # taken and adapted from Tornado

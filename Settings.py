@@ -5,7 +5,7 @@ class Settings:
     encryPasswordPrefix = "ENCRY"
 
     def __init__(self) -> None:
-        self.appDirectory = str(os.path.dirname(sys.argv[0])).replace("\\", "/")
+        self.appDirectory = str(os.path.dirname(os.path.abspath(sys.argv[0]))).replace("\\", "/")
         if (
             len(self.appDirectory) > 2
             and self.appDirectory[0].islower()

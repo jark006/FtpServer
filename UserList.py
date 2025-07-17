@@ -1,4 +1,6 @@
-import os, sys, re, Settings
+import Settings
+import os
+import sys
 
 
 class UserNode:
@@ -7,6 +9,50 @@ class UserNode:
         self.password = password
         self.perm = perm
         self.path = path
+
+
+def permTranslate(perm: str) -> str:
+    if perm == "elr":
+        return "只读"
+    elif perm == "elradfmwMT":
+        return "读写"
+    else:
+        return perm
+
+
+def permConvert(perm: str) -> str:
+    """
+    Link: https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
+    读取权限：
+    - "e" = 更改目录 (CWD 命令)
+    - "l" = 列出文件 (LIST、NLST、STAT、MLSD、MLST、SIZE、MDTM 命令)
+    - "r" = 从服务器检索文件 (RETR 命令)
+
+    写入权限：
+    - "a" = 将数据附加到现有文件 (APPE 命令)
+    - "d" = 删除文件或目录 (DELE、RMD 命令)
+    - "f" = 重命名文件或目录 (RNFR、RNTO 命令)
+    - "m" = 创建目录 (MKD 命令)
+    - "w" = 将文件存储到服务器 (STOR、STOU 命令)
+    - "M" = 更改文件模式 (SITE CHMOD 命令)
+    - "T" = 更新文件上次修改时间 (MFMT 命令)
+    """
+
+    if perm.lower() == "readonly" or perm == "只读":
+        return "elr"
+    elif perm.lower() == "readwrite" or perm == "读写":
+        return "elradfmwMT"
+    else:
+        charSet = set()
+        for c in perm:
+            if c not in "elradfmwMT":
+                continue
+            if c not in charSet:
+                charSet.add(c)
+        if len(charSet) == 0:
+            return "elr"
+        else:
+            return "".join(charSet)
 
 
 class UserList:
@@ -19,69 +65,27 @@ class UserList:
         ):
             self.appDirectory = self.appDirectory[0].upper() + self.appDirectory[1:]
 
-        self.savePath = os.path.join(self.appDirectory, "FtpServerUserList.csv")
+        self.userListCsvPath = os.path.join(self.appDirectory, "FtpServerUserList.csv")
 
         self.userList: list[UserNode] = list()
         self.userNameSet: set[str] = set()
         self.load()
 
-    def permConvert(self, input: str) -> str:
-        """
-        Link: https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
-        读取权限：
-        - "e" = 更改目录 (CWD 命令)
-        - "l" = 列出文件 (LIST、NLST、STAT、MLSD、MLST、SIZE、MDTM 命令)
-        - "r" = 从服务器检索文件 (RETR 命令)
-
-        写入权限：
-        - "a" = 将数据附加到现有文件 (APPE 命令)
-        - "d" = 删除文件或目录 (DELE、RMD 命令)
-        - "f" = 重命名文件或目录 (RNFR、RNTO 命令)
-        - "m" = 创建目录 (MKD 命令)
-        - "w" = 将文件存储到服务器 (STOR、STOU 命令)
-        - "M" = 更改文件模式 (SITE CHMOD 命令)
-        - "T" = 更新文件上次修改时间 (MFMT 命令)
-        """
-
-        if input.lower() == "readonly" or input == "只读":
-            return "elr"
-        elif input.lower() == "readwrite" or input == "读写":
-            return "elradfmwMT"
-        else:
-            charSet = set()
-            for c in input:
-                if c not in "elradfmwMT":
-                    continue
-                if c not in charSet:
-                    charSet.add(c)
-            if len(charSet) == 0:
-                return "elr"
-            else:
-                return "".join(charSet)
-
-    def permTranslate(self, input: str) -> str:
-        if input == "elr":
-            return "只读"
-        elif input == "elradfmwMT":
-            return "读写"
-        else:
-            return input
-
     def readAllLines(self) -> list[str]:
         for encoding in ['utf-8-sig', 'gbk']:
             try:
-                with open(self.savePath, 'r', encoding=encoding) as file:
+                with open(self.userListCsvPath, 'r', encoding=encoding) as file:
                     return file.read().splitlines()
             except:
                 continue
-        print(f"无法使用UTF-8或GBK编码读取文件 {self.savePath}")
+        print(f"无法使用UTF-8或GBK编码读取文件 {self.userListCsvPath}")
         return [""]
 
     def load(self):
         self.userList.clear()
         self.userNameSet.clear()
 
-        if not os.path.exists(self.savePath):
+        if not os.path.exists(self.userListCsvPath):
             return
 
         try:
@@ -117,7 +121,7 @@ class UserList:
                             UserNode(
                                 item[0].strip(),
                                 Settings.Settings.encry2sha256(item[1].strip()),
-                                self.permConvert(item[2].strip()),
+                                permConvert(item[2].strip()),
                                 item[3].strip().replace('"', ""),
                             )
                         )
@@ -126,7 +130,7 @@ class UserList:
                     continue
 
         except Exception as e:
-            print(f"用户列表文件读取异常: {self.savePath}\n{e}")
+            print(f"用户列表文件读取异常: {self.userListCsvPath}\n{e}")
             return
 
     def print(self):
@@ -136,7 +140,7 @@ class UserList:
             print(f"主页面的用户/密码设置将会忽略，现将使用以下{len(self.userList)}条用户配置:")
             for userItem in self.userList:
                 print(
-                    f"[{userItem.userName}] [******] [{self.permTranslate(userItem.perm)}] [{userItem.path}]"
+                    f"[{userItem.userName}] [******] [{permTranslate(userItem.perm)}] [{userItem.path}]"
                 )
             print('')
 
