@@ -1,8 +1,10 @@
 import os, sys, json, hashlib
-
+from typing import Any
 
 class Settings:
     encryPasswordPrefix = "ENCRY"
+    defaultUserName = "JARK006"
+    defaultUserPassword = "123456"
 
     def __init__(self) -> None:
         self.appDirectory = str(os.path.dirname(os.path.abspath(sys.argv[0]))).replace("\\", "/")
@@ -16,8 +18,8 @@ class Settings:
         self.savePath = os.path.join(self.appDirectory, "ftpServer.json")
 
         self.directoryList: list[str] = [self.appDirectory]
-        self.userName: str = "JARK006"
-        self.userPassword: str = "123456"
+        self.userName: str = Settings.defaultUserName
+        self.userPassword: str = self.encry2sha256(Settings.defaultUserPassword)
         self.IPv4Port: int = 21
         self.IPv6Port: int = 0
         self.isGBK: bool = True
@@ -67,10 +69,10 @@ class Settings:
                 self.directoryList = [self.appDirectory]
                 print(f"directoryList 类型错误，已恢复默认：[{self.appDirectory}]")
             if not type(self.userName) is str:
-                self.userName = "JARK006"
+                self.userName = Settings.defaultUserName
                 print(f"userName 类型错误，已恢复默认：{self.userName}")
             if not type(self.userPassword) is str:
-                self.userPassword = "123456"
+                self.userPassword = self.encry2sha256(Settings.defaultUserPassword)
                 print(f"userPassword 类型错误，已恢复默认：{self.userPassword}")
             if not type(self.IPv4Port) is int:
                 self.IPv4Port = 21
@@ -107,7 +109,7 @@ class Settings:
         while len(self.directoryList) > 20:
             self.directoryList.pop()
 
-        variables: dict[str, any] = {
+        variables: dict[str, Any] = {
             "directoryList": self.directoryList,
             "userName": self.userName,
             "userPassword": self.userPassword,

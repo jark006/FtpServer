@@ -1,4 +1,4 @@
-"""
+r"""
 FTP Server with GUI Interface
 一个带图形界面的FTP服务器
 
@@ -18,16 +18,12 @@ Copyright (c) 2025 JARK006
 # 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
     openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
 
-# 打包 单文件 隐藏终端窗口 以下三选一
+# 打包 单文件 隐藏终端窗口 以下三选一 (第一条和第二条是同一个，第一条执行过一次产生ftpServer.spec后，以后只需执行第二条)
     pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
     pyinstaller.exe .\ftpServer.spec
-    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.23.0.0 --product-version=1.23.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
+    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
 
 """
-
-
-import ctypes
-import functools
 
 # 标准库导入
 import os
@@ -36,6 +32,8 @@ import socket
 import sys
 import threading
 import time
+import ctypes
+import functools
 
 # GUI相关导入
 import tkinter as tk
@@ -51,13 +49,14 @@ import win32con
 import Settings
 import UserList
 import myUtils
+
 # 汉化 pyftpdlib 模块导入
 from mypyftpdlib.authorizers import DummyAuthorizer
 from mypyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 
 appLabel = "FTP文件服务器"
-appVersion = "v1.23"
+appVersion = "v1.24"
 appAuthor = "JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 releaseLink = "https://github.com/jark006/FtpServer/releases"
@@ -298,7 +297,7 @@ def updateSettingVars():
         userPasswordVar.set("******")
 
     try:
-        IPv4PortInt = (0 if IPv4PortVar.get() == "" else int(IPv4PortVar.get()))
+        IPv4PortInt = 0 if IPv4PortVar.get() == "" else int(IPv4PortVar.get())
         if 0 <= IPv4PortInt and IPv4PortInt < 65536:
             settings.IPv4Port = IPv4PortInt
         else:
@@ -313,7 +312,7 @@ def updateSettingVars():
         IPv4PortVar.set("21")
 
     try:
-        IPv6PortInt = (0 if IPv6PortVar.get() == "" else int(IPv6PortVar.get()))
+        IPv6PortInt = 0 if IPv6PortVar.get() == "" else int(IPv6PortVar.get())
         if 0 <= IPv6PortInt and IPv6PortInt < 65536:
             settings.IPv6Port = IPv6PortInt
         else:
@@ -341,7 +340,7 @@ class myStdout:  # 重定向输出
 
 
 def copyToClipboard(text: str):
-    if len(text) > 0:    
+    if len(text) > 0:
         win32clipboard.OpenClipboard()
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
@@ -412,9 +411,15 @@ def startServer():
             messagebox.showerror("密码异常", tips)
             print(tips)
             return
-        if (settings.userName == "anonymous" or len(settings.userName) == 0) and settings.isReadOnly == False:
-            print("警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。")
-            print("若是安全的内网环境可忽略以上警告，否则【匿名用户】应当选择【只读】权限。")
+        if (
+            settings.userName == "anonymous" or len(settings.userName) == 0
+        ) and settings.isReadOnly == False:
+            print(
+                "警告：当前允许【匿名用户】登录，且拥有【写入、修改】文件权限，请谨慎对待。"
+            )
+            print(
+                "若是安全的内网环境可忽略以上警告，否则【匿名用户】应当选择【只读】权限。"
+            )
     else:
         userNameEntry.configure(state=tk.DISABLED)
         userPasswordEntry.configure(state=tk.DISABLED)
@@ -518,7 +523,7 @@ def serverThreadFun(IP_Family: str):
     if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
         handler = TLS_FTPHandler
         handler.certfile = certFilePath  # type: ignore
-        handler.keyfile = keyFilePath    # type: ignore
+        handler.keyfile = keyFilePath  # type: ignore
         handler.tls_control_required = True
         handler.tls_data_required = True
         print(
@@ -671,14 +676,14 @@ def getTipsAndUrlList():
                 "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
             )
             IPv6FtpUrlList.append(fullUrl)
-            if ipStr.startswith(('fe80', 'fd00')):
+            if ipStr.startswith(("fe8", "fe9", "fea", "feb", "fd")):
                 IPv6IPstr += f"\n[IPv6 局域网] {fullUrl}"
             elif ipStr[:4] == "240e":
                 IPv6IPstr += f"\n[IPv6 电信公网] {fullUrl}"
             elif ipStr[:4] == "2408":
                 IPv6IPstr += f"\n[IPv6 联通公网] {fullUrl}"
             elif ipStr[:4] == "2409":
-                IPv6IPstr += f"\n[IPv6 移动/铁通网] {fullUrl}"
+                IPv6IPstr += f"\n[IPv6 移动铁通公网] {fullUrl}"
             else:
                 IPv6IPstr += f"\n[IPv6 公网] {fullUrl}"
         elif (settings.IPv4Port > 0) and ("." in ipStr):  # IPv4
