@@ -730,17 +730,15 @@ def main():
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
-    ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
-
     mystd = myStdout()  # 实例化重定向类
     logThread = threading.Thread(target=logThreadFun)
     logThread.start()
 
     window = tk.Tk()  # 实例化tk对象
+    ScaleFactor=window.tk.call("tk", "scaling") *75
     uiFont = font.Font(font=("Consolas"))
     window.geometry(f"{scale(600)}x{scale(500)}")
     window.resizable(False, False)
-    window.tk.call("tk", "scaling", ScaleFactor / 75)  # 设置程序缩放
 
     ftpIcon = myUtils.iconObj()  # 创建主窗口后才能初始化图标
 
