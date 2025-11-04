@@ -736,7 +736,7 @@ def main():
 
     window = tk.Tk()  # 实例化tk对象
     ScaleFactor = window.tk.call("tk", "scaling") * 75
-    uiFont = font.Font(font=("Consolas"))
+    uiFont = font.Font(family="Consolas", size=font.nametofont("TkTextFont").cget("size"))
     style = ttk.Style(window)
     style.configure("TButton", width=7, padding=(scale(5), scale(2)))
     style.configure("TEntry", padding=(scale(2), scale(3)))
