@@ -758,6 +758,8 @@ def main():
     strayIcon = pystray.Icon("icon", ftpIcon.strayIconImage, windowsTitle, strayMenu)
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
+    ttk.Sizegrip(window).place(relx=1, rely=1, anchor=tk.SE)
+
     frame1 = ttk.Frame(window)
     frame1.pack(fill=tk.X, padx=scale(10), pady=(scale(10), scale(5)))
 
