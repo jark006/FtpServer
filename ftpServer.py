@@ -727,7 +727,7 @@ def main():
     global isAutoStartServerVar
 
     # 告诉操作系统使用程序自身的dpi适配
-    ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    ctypes.windll.shcore.SetProcessDpiAwareness(1) # PROCESS_SYSTEM_DPI_AWARE
 
     mystd = myStdout()  # 实例化重定向类
     logThread = threading.Thread(target=logThreadFun)
