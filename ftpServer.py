@@ -155,15 +155,15 @@ Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "Win
 
     helpWindows = tk.Toplevel(window)
     helpWindows.geometry(f"{scale(600)}x{scale(500)}")
-    helpWindows.resizable(False, False)
+    helpWindows.minsize(scale(600), scale(500))
     helpWindows.title("帮助")
     helpWindows.iconphoto(False, iconImage)  # type: ignore
     helpTextWidget = scrolledtext.ScrolledText(
-        helpWindows, bg="#dddddd", wrap=tk.CHAR, font=uiFont
+        helpWindows, bg="#dddddd", wrap=tk.CHAR, font=uiFont, width=0, height=0
     )
     helpTextWidget.insert(tk.INSERT, helpTips)
     helpTextWidget.configure(state=tk.DISABLED)
-    helpTextWidget.place(x=0, y=0, width=scale(600), height=scale(500))
+    helpTextWidget.pack(fill=tk.BOTH, expand=True)
 
     menu = tk.Menu(window, tearoff=False)
     menu.add_command(
@@ -180,53 +180,52 @@ def showAbout():
     global iconImage
 
     aboutWindows = tk.Toplevel(window)
-    aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
+    # 自动跟随内容调节大小，适配大字体
+    # aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
     aboutWindows.resizable(False, False)
+    aboutWindows.minsize(scale(400), scale(200))
     aboutWindows.title("关于")
     aboutWindows.iconphoto(False, iconImage)  # type: ignore
 
-    tk.Label(aboutWindows, image=iconImage).place(
-        x=scale(0), y=scale(0), width=scale(100), height=scale(100)
+    headerFrame = ttk.Frame(aboutWindows)
+    headerFrame.pack(fill=tk.X)
+    headerFrame.grid_columnconfigure(1, weight=1)
+
+    tk.Label(headerFrame, image=iconImage, width=scale(100), height=scale(100)).grid(
+        row=0, column=0, rowspan=2
     )
     tk.Label(
-        aboutWindows,
+        headerFrame,
         text=f"{appLabel} {appVersion}",
         font=font.Font(font=("Consolas", scale(12))),
-    ).place(x=scale(100), y=scale(0), width=scale(300), height=scale(70))
+    ).grid(row=0, column=1, sticky=tk.S)
 
-    tk.Label(aboutWindows, text=f"开发者: {appAuthor}").place(
-        x=scale(100), y=scale(60), width=scale(300), height=scale(30)
-    )
+    tk.Label(headerFrame, text=f"开发者: {appAuthor}").grid(row=1, column=1)
 
-    tk.Label(aboutWindows, text="Github").place(
-        x=scale(20), y=scale(100), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="Release").place(
-        x=scale(20), y=scale(120), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="夸克网盘").place(
-        x=scale(20), y=scale(140), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="百度云盘").place(
-        x=scale(20), y=scale(160), width=scale(60), height=scale(20)
-    )
+    linksFrame = ttk.Frame(aboutWindows)
+    linksFrame.pack(fill=tk.X, padx=scale(20), pady=(0, scale(20)))
 
-    label1 = ttk.Label(aboutWindows, text=githubLink, foreground="blue")
+    tk.Label(linksFrame, text="Github").grid(row=0, column=0)
+    tk.Label(linksFrame, text="Release").grid(row=1, column=0)
+    tk.Label(linksFrame, text="夸克网盘").grid(row=2, column=0)
+    tk.Label(linksFrame, text="百度云盘").grid(row=3, column=0)
+
+    label1 = ttk.Label(linksFrame, text=githubLink, foreground="blue")
     label1.bind("<Button-1>", lambda event: webbrowser.open(githubLink))
-    label1.place(x=scale(80), y=scale(100), width=scale(320), height=scale(20))
+    label1.grid(row=0, column=1, sticky=tk.W)
 
-    label2 = ttk.Label(aboutWindows, text=releaseLink, foreground="blue")
+    label2 = ttk.Label(linksFrame, text=releaseLink, foreground="blue")
     label2.bind("<Button-1>", lambda event: webbrowser.open(releaseLink))
-    label2.place(x=scale(80), y=scale(120), width=scale(320), height=scale(20))
+    label2.grid(row=1, column=1, sticky=tk.W)
 
-    label3 = ttk.Label(aboutWindows, text=quarkLink, foreground="blue")
+    label3 = ttk.Label(linksFrame, text=quarkLink, foreground="blue")
     label3.bind("<Button-1>", lambda event: webbrowser.open(quarkLink))
-    label3.place(x=scale(80), y=scale(140), width=scale(320), height=scale(20))
+    label3.grid(row=2, column=1, sticky=tk.W)
 
     baiduLinkTmp = baiduLink[:30] + "... 提取码: 6666"
-    label4 = ttk.Label(aboutWindows, text=baiduLinkTmp, foreground="blue")
+    label4 = ttk.Label(linksFrame, text=baiduLinkTmp, foreground="blue")
     label4.bind("<Button-1>", lambda event: webbrowser.open(baiduLink))
-    label4.place(x=scale(80), y=scale(160), width=scale(320), height=scale(20))
+    label4.grid(row=3, column=1, sticky=tk.W)
 
 
 def deleteCurrentComboboxItem():
@@ -730,17 +729,21 @@ def main():
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
-    ScaleFactor = ctypes.windll.shcore.GetScaleFactorForDevice(0)
-
     mystd = myStdout()  # 实例化重定向类
     logThread = threading.Thread(target=logThreadFun)
     logThread.start()
 
     window = tk.Tk()  # 实例化tk对象
-    uiFont = font.Font(font=("Consolas"))
+    ScaleFactor = window.tk.call("tk", "scaling") * 75
+    uiFont = font.Font(
+        family="Consolas", size=font.nametofont("TkTextFont").cget("size")
+    )
+    style = ttk.Style(window)
+    style.configure("TButton", width=7, padding=(scale(5), scale(2)))
+    style.configure("TEntry", padding=(scale(2), scale(3)))
+    style.configure("TCombobox", padding=(scale(2), scale(3)))
     window.geometry(f"{scale(600)}x{scale(500)}")
-    window.resizable(False, False)
-    window.tk.call("tk", "scaling", ScaleFactor / 75)  # 设置程序缩放
+    window.minsize(scale(600), scale(500))
 
     ftpIcon = myUtils.iconObj()  # 创建主窗口后才能初始化图标
 
@@ -756,101 +759,113 @@ def main():
     strayIcon = pystray.Icon("icon", ftpIcon.strayIconImage, windowsTitle, strayMenu)
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
-    startButton = ttk.Button(window, text="开启", command=startServer)
-    startButton.place(x=scale(10), y=scale(10), width=scale(60), height=scale(25))
-    ttk.Button(window, text="关闭", command=closeServer).place(
-        x=scale(80), y=scale(10), width=scale(60), height=scale(25)
+    ttk.Sizegrip(window).place(relx=1, rely=1, anchor=tk.SE)
+
+    frame1 = ttk.Frame(window)
+    frame1.pack(fill=tk.X, padx=scale(10), pady=(scale(10), scale(5)))
+
+    startButton = ttk.Button(frame1, text="开启", command=startServer)
+    startButton.pack(side=tk.LEFT, padx=(0, scale(10)))
+    ttk.Button(frame1, text="关闭", command=closeServer).pack(
+        side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(window, text="选择目录", command=pickDirectory).place(
-        x=scale(150), y=scale(10), width=scale(70), height=scale(25)
+    ttk.Button(frame1, text="选择目录", command=pickDirectory).pack(
+        side=tk.LEFT, padx=(0, scale(10))
     )
 
-    directoryCombobox = ttk.Combobox(window)
-    directoryCombobox.place(
-        x=scale(230), y=scale(10), width=scale(220), height=scale(25)
+    directoryCombobox = ttk.Combobox(frame1, width=0)
+    directoryCombobox.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+    ttk.Button(
+        frame1, text="X", command=deleteCurrentComboboxItem, name="asd", width=0
+    ).pack(side=tk.LEFT, padx=(0, scale(10)), ipadx=5)
+
+    ttk.Button(frame1, text="帮助", command=showHelp).pack(
+        side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(window, text="X", command=deleteCurrentComboboxItem, name="asd").place(
-        x=scale(450), y=scale(10), width=scale(25), height=scale(25)
+    ttk.Button(frame1, text="关于", command=showAbout).pack(
+        side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(window, text="帮助", command=showHelp).place(
-        x=scale(485), y=scale(10), width=scale(50), height=scale(25)
-    )
+    frame2 = ttk.Frame(window)
+    frame2.pack(fill=tk.X, padx=scale(10), pady=(0, scale(10)))
 
-    ttk.Button(window, text="关于", command=showAbout).place(
-        x=scale(540), y=scale(10), width=scale(50), height=scale(25)
-    )
+    userFrame = ttk.Frame(frame2)
+    userFrame.pack(side=tk.LEFT, padx=(0, scale(10)), fill=tk.Y)
 
-    ttk.Label(window, text="用户").place(
-        x=scale(10), y=scale(40), width=scale(30), height=scale(25)
+    ttk.Label(userFrame, text="用户").grid(
+        row=0, column=0, pady=(0, scale(5)), padx=(0, scale(5))
     )
     userNameVar = tk.StringVar()
-    userNameEntry = ttk.Entry(window, textvariable=userNameVar, width=scale(12))
-    userNameEntry.place(x=scale(40), y=scale(40), width=scale(150), height=scale(25))
+    userNameEntry = ttk.Entry(userFrame, textvariable=userNameVar, width=scale(12))
+    userNameEntry.grid(row=0, column=1, sticky=tk.EW, pady=(0, scale(5)))
 
-    ttk.Label(window, text="密码").place(
-        x=scale(10), y=scale(70), width=scale(30), height=scale(25)
-    )
+    ttk.Label(userFrame, text="密码").grid(row=1, column=0, padx=(0, scale(5)))
     userPasswordVar = tk.StringVar()
     userPasswordEntry = ttk.Entry(
-        window, textvariable=userPasswordVar, width=scale(12), show="*"
+        userFrame, textvariable=userPasswordVar, width=scale(12), show="*"
     )
-    userPasswordEntry.place(
-        x=scale(40), y=scale(70), width=scale(150), height=scale(25)
-    )
+    userPasswordEntry.grid(row=1, column=1, sticky=tk.EW)
 
-    ttk.Label(window, text="IPv4端口").place(
-        x=scale(200), y=scale(40), width=scale(60), height=scale(25)
+    portFrame = ttk.Frame(frame2)
+    portFrame.pack(side=tk.LEFT, padx=(0, scale(10)), fill=tk.Y)
+
+    ttk.Label(portFrame, text="IPv4端口").grid(
+        row=0, column=0, pady=(0, scale(5)), padx=(0, scale(5))
     )
     IPv4PortVar = tk.StringVar()
-    ttk.Entry(window, textvariable=IPv4PortVar, width=scale(8)).place(
-        x=scale(260), y=scale(40), width=scale(50), height=scale(25)
+    ttk.Entry(portFrame, textvariable=IPv4PortVar, width=6).grid(
+        row=0, column=1, pady=(0, scale(5))
     )
 
-    ttk.Label(window, text="IPv6端口").place(
-        x=scale(200), y=scale(70), width=scale(60), height=scale(25)
-    )
+    ttk.Label(portFrame, text="IPv6端口").grid(row=1, column=0, padx=(0, scale(5)))
     IPv6PortVar = tk.StringVar()
-    ttk.Entry(window, textvariable=IPv6PortVar, width=scale(8)).place(
-        x=scale(260), y=scale(70), width=scale(50), height=scale(25)
-    )
+    ttk.Entry(portFrame, textvariable=IPv6PortVar, width=6).grid(row=1, column=1)
+
+    encodingFrame = ttk.Frame(frame2)
+    encodingFrame.pack(side=tk.LEFT, padx=(0, scale(10)), fill=tk.Y)
+    encodingFrame.grid_rowconfigure((0, 1), weight=1)
 
     isGBKVar = tk.BooleanVar()
-    ttk.Radiobutton(window, text="UTF-8 编码", variable=isGBKVar, value=False).place(
-        x=scale(315), y=scale(40), width=scale(90), height=scale(25)
-    )
-    ttk.Radiobutton(window, text="GBK 编码", variable=isGBKVar, value=True).place(
-        x=scale(315), y=scale(70), width=scale(90), height=scale(25)
+    ttk.Radiobutton(
+        encodingFrame, text="UTF-8 编码", variable=isGBKVar, value=False
+    ).grid(row=0, column=0, sticky=tk.EW, pady=(0, scale(5)))
+    ttk.Radiobutton(encodingFrame, text="GBK 编码", variable=isGBKVar, value=True).grid(
+        row=1, column=0, sticky=tk.EW
     )
 
+    permissionFrame = ttk.Frame(frame2)
+    permissionFrame.pack(side=tk.LEFT, padx=(0, scale(10)), fill=tk.Y)
+    permissionFrame.grid_rowconfigure((0, 1), weight=1)
+
     isReadOnlyVar = tk.BooleanVar()
-    ttk.Radiobutton(window, text="读写", variable=isReadOnlyVar, value=False).place(
-        x=scale(400), y=scale(40), width=scale(50), height=scale(25)
-    )
-    ttk.Radiobutton(window, text="只读", variable=isReadOnlyVar, value=True).place(
-        x=scale(400), y=scale(70), width=scale(50), height=scale(25)
-    )
+    ttk.Radiobutton(
+        permissionFrame, text="读写", variable=isReadOnlyVar, value=False
+    ).grid(row=0, column=0, sticky=tk.EW, pady=(0, scale(5)))
+    ttk.Radiobutton(
+        permissionFrame, text="只读", variable=isReadOnlyVar, value=True
+    ).grid(row=1, column=0, sticky=tk.EW)
 
     isAutoStartServerVar = tk.BooleanVar()
     ttk.Checkbutton(
-        window,
+        frame2,
         text="下次打开软件后自动\n隐藏窗口并启动服务",
         variable=isAutoStartServerVar,
         onvalue=True,
         offvalue=False,
-    ).place(x=scale(460), y=scale(40), width=scale(160), height=scale(50))
+    ).pack(side=tk.LEFT)
 
     tipsTextWidget = scrolledtext.ScrolledText(
-        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont
+        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont, height=0, width=0
     )
-    tipsTextWidget.place(x=scale(10), y=scale(100), width=scale(580), height=scale(150))
+    tipsTextWidget.pack(fill=tk.BOTH, expand=True, padx=scale(10), pady=(0, scale(10)))
 
     loggingWidget = scrolledtext.ScrolledText(
-        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont
+        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont, height=0, width=0
     )
-    loggingWidget.place(x=scale(10), y=scale(260), width=scale(580), height=scale(230))
+    loggingWidget.pack(fill=tk.BOTH, expand=True, padx=scale(10), pady=(0, scale(10)))
     loggingWidget.configure(state=tk.DISABLED)
 
     settings = Settings.Settings()
