@@ -739,7 +739,7 @@ def main():
         family="Consolas", size=font.nametofont("TkTextFont").cget("size")
     )
     style = ttk.Style(window)
-    style.configure("TButton", width=7, padding=(scale(5), scale(2)))
+    style.configure("TButton", width=-5, padding=(scale(8), scale(2)))
     style.configure("TEntry", padding=(scale(2), scale(3)))
     style.configure("TCombobox", padding=(scale(2), scale(3)))
     window.geometry(f"{scale(600)}x{scale(500)}")
@@ -770,24 +770,22 @@ def main():
         side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(frame1, text="选择目录", command=pickDirectory, width=8).pack(
+    ttk.Button(frame1, text="选择目录", command=pickDirectory).pack(
         side=tk.LEFT, padx=(0, scale(10))
     )
 
     directoryCombobox = ttk.Combobox(frame1, width=0)
     directoryCombobox.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
-    ttk.Button(
-        frame1, text="X", command=deleteCurrentComboboxItem, width=0
-    ).pack(side=tk.LEFT, padx=(0, scale(10)), ipadx=5)
-
-    ttk.Button(frame1, text="帮助", command=showHelp).pack(
+    ttk.Button(frame1, text="X", command=deleteCurrentComboboxItem, width=0).pack(
         side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(frame1, text="关于", command=showAbout).pack(
-        side=tk.LEFT, padx=(0, scale(10))
+    ttk.Button(frame1, text="帮助", command=showHelp, width=-4).pack(
+        side=tk.LEFT, padx=(0, scale(5))
     )
+
+    ttk.Button(frame1, text="关于", command=showAbout, width=-4).pack(side=tk.LEFT)
 
     frame2 = ttk.Frame(window)
     frame2.pack(fill=tk.X, padx=scale(10), pady=(0, scale(10)))
@@ -799,13 +797,13 @@ def main():
         row=0, column=0, pady=(0, scale(5)), padx=(0, scale(5))
     )
     userNameVar = tk.StringVar()
-    userNameEntry = ttk.Entry(userFrame, textvariable=userNameVar, width=scale(12))
+    userNameEntry = ttk.Entry(userFrame, textvariable=userNameVar, width=20)
     userNameEntry.grid(row=0, column=1, sticky=tk.EW, pady=(0, scale(5)))
 
     ttk.Label(userFrame, text="密码").grid(row=1, column=0, padx=(0, scale(5)))
     userPasswordVar = tk.StringVar()
     userPasswordEntry = ttk.Entry(
-        userFrame, textvariable=userPasswordVar, width=scale(12), show="*"
+        userFrame, textvariable=userPasswordVar, width=20, show="*"
     )
     userPasswordEntry.grid(row=1, column=1, sticky=tk.EW)
 
