@@ -42,8 +42,6 @@ from tkinter import ttk, scrolledtext, filedialog, messagebox, font
 
 # 第三方库导入
 import pystray
-import win32clipboard
-import win32con
 
 # 本地模块导入
 import Settings
@@ -339,12 +337,10 @@ class myStdout:  # 重定向输出
 
 
 def copyToClipboard(text: str):
+    global window
     if len(text) > 0:
-        win32clipboard.OpenClipboard()
-        win32clipboard.EmptyClipboard()
-        win32clipboard.SetClipboardData(win32con.CF_UNICODETEXT, text)
-        win32clipboard.CloseClipboard()
-
+        window.clipboard_clear()
+        window.clipboard_append(text)
 
 def ip_into_int(ip_str: str) -> int:
     return functools.reduce(lambda x, y: (x << 8) + y, map(int, ip_str.split(".")))
