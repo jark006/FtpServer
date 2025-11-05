@@ -180,53 +180,52 @@ def showAbout():
     global iconImage
 
     aboutWindows = tk.Toplevel(window)
-    aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
+    # 自动跟随内容调节大小，适配大字体
+    # aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
     aboutWindows.resizable(False, False)
+    aboutWindows.minsize(scale(400), scale(200))
     aboutWindows.title("关于")
     aboutWindows.iconphoto(False, iconImage)  # type: ignore
 
-    tk.Label(aboutWindows, image=iconImage).place(
-        x=scale(0), y=scale(0), width=scale(100), height=scale(100)
+    headerFrame = ttk.Frame(aboutWindows)
+    headerFrame.pack(fill=tk.X)
+    headerFrame.grid_columnconfigure(1, weight=1)
+
+    tk.Label(headerFrame, image=iconImage, width=scale(100), height=scale(100)).grid(
+        row=0, column=0, rowspan=2
     )
     tk.Label(
-        aboutWindows,
+        headerFrame,
         text=f"{appLabel} {appVersion}",
         font=font.Font(font=("Consolas", scale(12))),
-    ).place(x=scale(100), y=scale(0), width=scale(300), height=scale(70))
+    ).grid(row=0, column=1, sticky=tk.S)
 
-    tk.Label(aboutWindows, text=f"开发者: {appAuthor}").place(
-        x=scale(100), y=scale(60), width=scale(300), height=scale(30)
-    )
+    tk.Label(headerFrame, text=f"开发者: {appAuthor}").grid(row=1, column=1)
 
-    tk.Label(aboutWindows, text="Github").place(
-        x=scale(20), y=scale(100), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="Release").place(
-        x=scale(20), y=scale(120), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="夸克网盘").place(
-        x=scale(20), y=scale(140), width=scale(60), height=scale(20)
-    )
-    tk.Label(aboutWindows, text="百度云盘").place(
-        x=scale(20), y=scale(160), width=scale(60), height=scale(20)
-    )
+    linksFrame = ttk.Frame(aboutWindows)
+    linksFrame.pack(fill=tk.X, padx=scale(20), pady=(0, scale(20)))
 
-    label1 = ttk.Label(aboutWindows, text=githubLink, foreground="blue")
+    tk.Label(linksFrame, text="Github").grid(row=0, column=0)
+    tk.Label(linksFrame, text="Release").grid(row=1, column=0)
+    tk.Label(linksFrame, text="夸克网盘").grid(row=2, column=0)
+    tk.Label(linksFrame, text="百度云盘").grid(row=3, column=0)
+
+    label1 = ttk.Label(linksFrame, text=githubLink, foreground="blue")
     label1.bind("<Button-1>", lambda event: webbrowser.open(githubLink))
-    label1.place(x=scale(80), y=scale(100), width=scale(320), height=scale(20))
+    label1.grid(row=0, column=1, sticky=tk.W)
 
-    label2 = ttk.Label(aboutWindows, text=releaseLink, foreground="blue")
+    label2 = ttk.Label(linksFrame, text=releaseLink, foreground="blue")
     label2.bind("<Button-1>", lambda event: webbrowser.open(releaseLink))
-    label2.place(x=scale(80), y=scale(120), width=scale(320), height=scale(20))
+    label2.grid(row=1, column=1, sticky=tk.W)
 
-    label3 = ttk.Label(aboutWindows, text=quarkLink, foreground="blue")
+    label3 = ttk.Label(linksFrame, text=quarkLink, foreground="blue")
     label3.bind("<Button-1>", lambda event: webbrowser.open(quarkLink))
-    label3.place(x=scale(80), y=scale(140), width=scale(320), height=scale(20))
+    label3.grid(row=2, column=1, sticky=tk.W)
 
     baiduLinkTmp = baiduLink[:30] + "... 提取码: 6666"
-    label4 = ttk.Label(aboutWindows, text=baiduLinkTmp, foreground="blue")
+    label4 = ttk.Label(linksFrame, text=baiduLinkTmp, foreground="blue")
     label4.bind("<Button-1>", lambda event: webbrowser.open(baiduLink))
-    label4.place(x=scale(80), y=scale(160), width=scale(320), height=scale(20))
+    label4.grid(row=3, column=1, sticky=tk.W)
 
 
 def deleteCurrentComboboxItem():
@@ -736,7 +735,9 @@ def main():
 
     window = tk.Tk()  # 实例化tk对象
     ScaleFactor = window.tk.call("tk", "scaling") * 75
-    uiFont = font.Font(family="Consolas", size=font.nametofont("TkTextFont").cget("size"))
+    uiFont = font.Font(
+        family="Consolas", size=font.nametofont("TkTextFont").cget("size")
+    )
     style = ttk.Style(window)
     style.configure("TButton", width=7, padding=(scale(5), scale(2)))
     style.configure("TEntry", padding=(scale(2), scale(3)))
