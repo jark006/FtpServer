@@ -770,7 +770,7 @@ def main():
         side=tk.LEFT, padx=(0, scale(10))
     )
 
-    ttk.Button(frame1, text="选择目录", command=pickDirectory).pack(
+    ttk.Button(frame1, text="选择目录", command=pickDirectory, width=8).pack(
         side=tk.LEFT, padx=(0, scale(10))
     )
 
@@ -778,7 +778,7 @@ def main():
     directoryCombobox.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
     ttk.Button(
-        frame1, text="X", command=deleteCurrentComboboxItem, name="asd", width=0
+        frame1, text="X", command=deleteCurrentComboboxItem, width=0
     ).pack(side=tk.LEFT, padx=(0, scale(10)), ipadx=5)
 
     ttk.Button(frame1, text="帮助", command=showHelp).pack(
@@ -858,9 +858,9 @@ def main():
     ).pack(side=tk.LEFT)
 
     tipsTextWidget = scrolledtext.ScrolledText(
-        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont, height=0, width=0
+        window, bg="#dddddd", wrap=tk.CHAR, font=uiFont, height=10, width=0
     )
-    tipsTextWidget.pack(fill=tk.BOTH, expand=True, padx=scale(10), pady=(0, scale(10)))
+    tipsTextWidget.pack(fill=tk.BOTH, expand=False, padx=scale(10), pady=(0, scale(10)))
 
     loggingWidget = scrolledtext.ScrolledText(
         window, bg="#dddddd", wrap=tk.CHAR, font=uiFont, height=0, width=0
