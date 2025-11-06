@@ -24,7 +24,6 @@ Copyright (c) 2025 JARK006
     python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
 
 """
-
 # 标准库导入
 import os
 import queue
@@ -35,6 +34,7 @@ import time
 import ctypes
 import functools
 from typing import TextIO
+import io
 
 # GUI相关导入
 import tkinter as tk
@@ -327,7 +327,7 @@ def updateSettingVars():
         IPv6PortVar.set("21")
 
 
-class LogMsgIO:
+class LogMsgIO(io.TextIOBase):
     def __init__(self, wrapped: TextIO | None):
         self.wrapped = wrapped
 
