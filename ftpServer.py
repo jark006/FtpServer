@@ -34,6 +34,7 @@ import threading
 import time
 import ctypes
 import functools
+from typing import TextIO
 
 # GUI相关导入
 import tkinter as tk
@@ -326,16 +327,18 @@ def updateSettingVars():
         IPv6PortVar.set("21")
 
 
-class myStdout:  # 重定向输出
-    def __init__(self):
-        sys.stdout = self
-        sys.stderr = self
+class LogMsgIO:
+    def __init__(self, wrapped: TextIO | None):
+        self.wrapped = wrapped
 
     def write(self, info):
         logMsg.put(info)
+        if self.wrapped:
+            self.wrapped.write(info)
 
     def flush(self):
-        pass
+        if self.wrapped:
+            self.wrapped.flush()
 
 
 def copyToClipboard(text: str):
@@ -729,7 +732,9 @@ def main():
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
-    mystd = myStdout()  # 实例化重定向类
+    sys.stdout = LogMsgIO(sys.stdout)
+    sys.stderr = LogMsgIO(sys.stderr)
+
     logThread = threading.Thread(target=logThreadFun)
     logThread.start()
 
