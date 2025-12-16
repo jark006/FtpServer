@@ -7,7 +7,7 @@ Email: jark006@qq.com
 Github: https://github.com/jark006
 Project: https://github.com/jark006/FtpServer
 License: MIT License
-Copyright (c) 2025 JARK006
+Copyright (c) 2023-2026 JARK006
 
 # 打包工具
     pip install pyinstaller nuitka
@@ -668,8 +668,15 @@ def getTipsAndUrlList():
     IPv6IPstr = ""
     IPv4FtpUrlList = []
     IPv6FtpUrlList = []
+    ipStrSet = set() # 少数用户存在多个相同IP的情况，避免重复添加
+
     for item in addrs:
         ipStr = str(item[4][0])
+
+        if ipStr in ipStrSet:
+            continue
+        ipStrSet.add(ipStr)
+
         if (settings.IPv6Port > 0) and (":" in ipStr):  # IPv6
             fullUrl = f"ftp://[{ipStr}]" + (
                 "" if settings.IPv6Port == 21 else (f":{settings.IPv6Port}")
@@ -692,6 +699,8 @@ def getTipsAndUrlList():
             IPv4FtpUrlList.append(fullUrl)
             if is_internal_ip(ipStr):
                 IPv4IPstr += f"\n[IPv4 局域网] {fullUrl}"
+            elif ipStr.startswith("198.18."):
+                IPv4IPstr += f"\n[IPv4 TUN代理] {fullUrl}"
             else:
                 IPv4IPstr += f"\n[IPv4 公网] {fullUrl}"
 
