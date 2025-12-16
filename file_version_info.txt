@@ -33,7 +33,7 @@ VSVersionInfo(
         StringStruct('FileDescription', 'FtpServer Github@JARK006'),
         StringStruct('FileVersion', '1.24.0.0'),
         StringStruct('InternalName', 'FtpServer'),
-        StringStruct('LegalCopyright', 'Copyright (C) 2025'),
+        StringStruct('LegalCopyright', 'Copyright (C) 2023-2026'),
         StringStruct('OriginalFilename', 'FtpServer.exe'),
         StringStruct('ProductName', 'FtpServer'),
         StringStruct('ProductVersion', '1.24.0.0')])
