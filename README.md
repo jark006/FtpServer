@@ -87,11 +87,3 @@ Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `W
 2. [tkinter](https://docs.python.org/3/library/tkinter.html)
 3. [pystray](https://github.com/moses-palmer/pystray)
 4. [Pillow](https://github.com/python-pillow/Pillow)
-
----
-
-## ❤ 支持开发
-
-生活不易，三瓜俩枣都是心意
-
-![donate](donate.png)
