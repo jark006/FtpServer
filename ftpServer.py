@@ -533,6 +533,9 @@ def serverThreadFun(IP_Family: str):
 
     handler.authorizer = authorizer
     handler.encoding = "gbk" if settings.isGBK else "utf8"
+    handler.permit_foreign_addresses = True
+    handler.permit_privileged_ports = True
+    
     if IP_Family == "IPv4":
         serverV4 = ThreadedFTPServer(("0.0.0.0", settings.IPv4Port), handler)
         print("[FTP IPv4] 开始运行")
