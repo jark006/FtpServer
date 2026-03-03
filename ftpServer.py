@@ -21,7 +21,7 @@ Copyright (c) 2023-2026 JARK006
 # 打包 单文件 隐藏终端窗口 以下三选一 (第一条和第二条是同一个，第一条执行过一次产生ftpServer.spec后，以后只需执行第二条)
     pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
     pyinstaller.exe .\ftpServer.spec
-    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2025 Github@JARK006"
+    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
 
 """
 
@@ -702,7 +702,7 @@ def getTipsAndUrlList():
             IPv4FtpUrlList.append(fullUrl)
             if is_internal_ip(ipStr):
                 IPv4IPstr += f"\n[IPv4 局域网] {fullUrl}"
-            elif ipStr.startswith("198.18."):
+            elif ipStr.startswith(("198.18.", "28.0.0.")):
                 IPv4IPstr += f"\n[IPv4 TUN代理] {fullUrl}"
             else:
                 IPv4IPstr += f"\n[IPv4 公网] {fullUrl}"
@@ -768,7 +768,7 @@ def main():
         pystray.MenuItem("显示", showWindow, default=True),
         pystray.MenuItem("退出", handleExit),
     )
-    strayIcon = pystray.Icon("icon", ftpIcon.strayIconImage, windowsTitle, strayMenu)
+    strayIcon = pystray.Icon("FtpServerIcon", ftpIcon.strayIconImage, windowsTitle, strayMenu)
     threading.Thread(target=strayIcon.run, daemon=True).start()
 
     ttk.Sizegrip(window).place(relx=1, rely=1, anchor=tk.SE)
