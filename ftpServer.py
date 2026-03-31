@@ -21,7 +21,7 @@ Copyright (c) 2023-2026 JARK006
 # 打包 单文件 隐藏终端窗口 以下三选一 (第一条和第二条是同一个，第一条执行过一次产生ftpServer.spec后，以后只需执行第二条)
     pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
     pyinstaller.exe .\ftpServer.spec
-    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
+    python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.25.0.0 --product-version=1.25.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
 
 try:
 """
@@ -57,7 +57,7 @@ from mypyftpdlib.handlers import FTPHandler, TLS_FTPHandler
 from mypyftpdlib.servers import ThreadedFTPServer
 
 appLabel = "FTP文件服务器"
-appVersion = "v1.24"
+appVersion = "v1.25"
 appAuthor = "JARK006"
 githubLink = "https://github.com/jark006/FtpServer"
 releaseLink = "https://github.com/jark006/FtpServer/releases"
