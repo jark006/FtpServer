@@ -12,37 +12,20 @@ Instead you should use logging.basicConfig before serve_forever().
 
 import logging
 import re
-import sys
 import time
+import curses
 
-
-try:
-    import curses
-except ImportError:
-    curses = None
-
+from .utils import term_supports_colors
 
 # default logger
-logger = logging.getLogger('pyftpdlib')
-
-
-def _stderr_supports_color():
-    color = False
-    if curses is not None and sys.stderr.isatty():
-        try:
-            curses.setupterm()
-            if curses.tigetnum("colors") > 0:
-                color = True
-        except Exception:  # noqa
-            pass
-    return color
+logger = logging.getLogger("pyftpdlib")
 
 
 # configurable options
 LEVEL = logging.INFO
-PREFIX = '[%(levelname)1.1s %(asctime)s]'
-PREFIX_MPROC = '[%(levelname)1.1s %(asctime)s %(process)s]'
-COLOURED = _stderr_supports_color()
+PREFIX = "[%(levelname)1.1s %(asctime)s]"
+PREFIX_MPROC = "[%(levelname)1.1s %(asctime)s %(process)s]"
+COLOURED = term_supports_colors()
 TIME_FORMAT = "%H:%M:%S"
 
 
@@ -60,7 +43,7 @@ class LogFormatter(logging.Formatter):
 
     def __init__(self, *args, **kwargs):
         logging.Formatter.__init__(self, *args, **kwargs)
-        self._coloured = COLOURED and _stderr_supports_color()
+        self._coloured = COLOURED and term_supports_colors()
         if self._coloured:
             curses.setupterm()
             # The curses module has some str/bytes confusion in
@@ -139,7 +122,7 @@ def debug(s, inst=None):
 
 
 def is_logging_configured():
-    if logging.getLogger('pyftpdlib').handlers:
+    if logging.getLogger("pyftpdlib").handlers:
         return True
     return bool(logging.root.handlers)
 
@@ -155,7 +138,7 @@ def config_logging(level=LEVEL, prefix=PREFIX, other_loggers=None):
     # * https://stackoverflow.com/a/38924153/376587
     key_names = set(
         re.findall(
-            r'(?<!%)%\(([^)]+)\)[-# +0-9.hlL]*[diouxXeEfFgGcrs]', prefix
+            r"(?<!%)%\(([^)]+)\)[-# +0-9.hlL]*[diouxXeEfFgGcrs]", prefix
         )
     )
     if "process" not in key_names:
@@ -177,7 +160,7 @@ def config_logging(level=LEVEL, prefix=PREFIX, other_loggers=None):
     formatter = LogFormatter()
     formatter.PREFIX = prefix
     handler.setFormatter(formatter)
-    loggers = [logging.getLogger('pyftpdlib')]
+    loggers = [logging.getLogger("pyftpdlib")]
     if other_loggers is not None:
         loggers.extend(other_loggers)
     for log in loggers:

@@ -9,23 +9,16 @@ import random
 import sys
 import time
 from binascii import hexlify
+import multiprocessing
 
-
-try:
-    import multiprocessing
-except ImportError:
-    multiprocessing = None
 
 from .log import logger
-
 
 _task_id = None
 
 
 def cpu_count():
     """Returns the number of processors on this machine."""
-    if multiprocessing is None:
-        return 1
     try:
         return multiprocessing.cpu_count()
     except NotImplementedError:

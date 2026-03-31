@@ -13,7 +13,7 @@ Copyright (c) 2023-2026 JARK006
     pip install pyinstaller nuitka
 
 # 第三方库需求
-    pip install Pillow pypiwin32 pystray pyopenssl pyasynchat
+    pip install Pillow pypiwin32 pystray pyopenssl pyasynchat windows-curses
 
 # 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
     openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
@@ -23,6 +23,7 @@ Copyright (c) 2023-2026 JARK006
     pyinstaller.exe .\ftpServer.spec
     python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.24.0.0 --product-version=1.24.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
 
+try:
 """
 
 # 标准库导入
