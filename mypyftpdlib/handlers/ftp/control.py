@@ -697,25 +697,25 @@ class FTPHandler(AsyncChat):
                 msg = f'Command "{cmd}" not understood.'
                 self.respond("500 " + msg)
                 if cmd:
-                    self.log_cmd(cmd, arg, 500, msg)
+                    self.log_cmd(cmd, arg, 500, f"不支持的命令 {cmd}")
                 return
 
         if not arg and self.proto_cmds[cmd]["arg"] is True:
             msg = "Syntax error: command needs an argument."
             self.respond("501 " + msg)
-            self.log_cmd(cmd, "", 501, msg)
+            self.log_cmd(cmd, "", 501, f"命令 {cmd} 需要参数")
             return
         if arg and self.proto_cmds[cmd]["arg"] is False:
             msg = "Syntax error: command does not accept arguments."
             self.respond("501 " + msg)
-            self.log_cmd(cmd, arg, 501, msg)
+            self.log_cmd(cmd, arg, 501, f"命令 {cmd} 不接受参数")
             return
 
         if not self.authenticated:
             if self.proto_cmds[cmd]["auth"] or (cmd == "STAT" and arg):
                 msg = "Log in with USER and PASS first."
                 self.respond("530 " + msg)
-                self.log_cmd(cmd, arg, 530, msg)
+                self.log_cmd(cmd, arg, 530, f"请先使用 USER 和 PASS 登录")
             else:
                 # call the proper ftp_* method
                 self.process_command(cmd, arg)
@@ -741,14 +741,14 @@ class FTPHandler(AsyncChat):
                     if glob.has_magic(arg):
                         msg = "Globbing not supported."
                         self.respond("550 " + msg)
-                        self.log_cmd(cmd, arg, 550, msg)
+                        self.log_cmd(cmd, arg, 550, f"不支持 Globbing")
                         return
                     arg = self.fs.ftp2fs(arg or self.fs.cwd)
                 elif cmd == "SITE CHMOD":
                     if " " not in arg:
                         msg = "Syntax error: command needs two arguments."
                         self.respond("501 " + msg)
-                        self.log_cmd(cmd, "", 501, msg)
+                        self.log_cmd(cmd, "", 501, f"命令 {cmd} 需要两个参数")
                         return
                     else:
                         mode, arg = arg.split(" ", 1)
@@ -758,7 +758,7 @@ class FTPHandler(AsyncChat):
                     if " " not in arg:
                         msg = "Syntax error: command needs two arguments."
                         self.respond("501 " + msg)
-                        self.log_cmd(cmd, "", 501, msg)
+                        self.log_cmd(cmd, "", 501, f"命令 {cmd} 需要两个参数")
                         return
                     else:
                         timeval, arg = arg.split(" ", 1)
@@ -773,7 +773,7 @@ class FTPHandler(AsyncChat):
                     msg = f"{line!r} points to a path which is outside "
                     msg += "the user's root directory"
                     self.respond(f"550 {msg}.")
-                    self.log_cmd(cmd, arg, 550, msg)
+                    self.log_cmd(cmd, arg, 550, f"路径 {line} 不在用户根目录下")
                     return
 
             # check permission
@@ -782,7 +782,7 @@ class FTPHandler(AsyncChat):
                 if not self.authorizer.has_perm(self.username, perm, arg):
                     msg = "Not enough privileges."
                     self.respond("550 " + msg)
-                    self.log_cmd(cmd, arg, 550, msg)
+                    self.log_cmd(cmd, arg, 550, f"没有足够的权限")
                     return
 
             # call the proper ftp_* method
@@ -847,7 +847,7 @@ class FTPHandler(AsyncChat):
             if self.fs is not None:
                 self.fs.cmd_channel = None
                 self.fs = None
-            self.log("FTP session closed (disconnect).")
+            self.log("FTP 会话已关闭")
             # Having self.remote_ip not set means that no connection
             # actually took place, hence we're not interested in
             # invoking the callback.
@@ -1110,6 +1110,46 @@ class FTPHandler(AsyncChat):
         "MFMT",
     ]
 
+    log_cmds_translate: dict[str, str] = {
+        "USER": "用户名",
+        "PASS": "密码",
+        "ACCT": "账号",
+        "CWD": "进入目录",
+        "CDUP": "进入上级目录",
+        "QUIT": "退出",
+        "PORT": "主动模式",
+        "PASV": "被动模式",
+        "TYPE": "设置类型",
+        "STRU": "文件结构",
+        "MODE": "传输模式",
+        "RETR": "下载",
+        "STOR": "上传",
+        "APPE": "追加上传",
+        "LIST": "列出目录",
+        "NLST": "简单列出目录",
+        "REIN": "重新初始化",
+        "STOU": "存储唯一文件",
+        "ALLO": "分配空间",
+        "REST": "恢复传输",
+        "RNFR": "原名称",
+        "RNTO": "重命名",
+        "ABOR": "中断传输",
+        "DELE": "删除",
+        "RMD": "删除目录",
+        "MKD": "创建目录",
+        "PWD": "当前目录",
+        "SYST": "系统信息",
+        "STAT": "状态信息",
+        "HELP": "帮助",
+        "NOOP": "空操作",
+        "SITE": "站点参数",
+        "XMKD": "创建目录",
+        "XRMD": "删除目录",
+        "XCWD": "进入目录",
+        "SITE CHMOD": "修改文件权限",
+        "MFMT": "更新修改时间",
+    }
+
     def log_cmd(self, cmd, arg, respcode, respstr):
         """Log commands and responses in a standardized format.
         This is disabled in case the logging level is set to DEBUG.
@@ -1139,7 +1179,9 @@ class FTPHandler(AsyncChat):
         further commands.
         """
         if not self._log_debug and cmd in self.log_cmds_list:
-            line = f"{cmd.strip()} {arg.strip()} {respcode}"
+            if cmd in self.log_cmds_translate:
+                cmd = self.log_cmds_translate[cmd]
+            line = f"{cmd.strip()} {arg.strip()}"
             if str(respcode)[0] in ("4", "5"):
                 line += f" {respstr!r}"
             self.log(line)
@@ -1166,13 +1208,42 @@ class FTPHandler(AsyncChat):
         - (int) bytes:
            number of bytes transmitted.
         """
-        line = "%s %s completed=%s bytes=%s seconds=%s" % (
-            cmd,
-            filename,
-            (completed and 1) or 0,
-            bytes,
-            elapsed,
-        )
+        def byte2Str(bytes: int) -> str:
+            if bytes < 1024:
+                return f"{bytes}Bytes"
+            elif bytes < 1024**2:
+                return f"{bytes/1024.0:.2f}KiB"
+            elif bytes < 1024**3:
+                return f"{bytes/(1024.0**2):.2f}MiB"
+            else:
+                return f"{bytes/(1024.0**3):.2f}GiB"
+
+        def elapsed2Str(elapsed: float) -> str:
+            if elapsed < 1e-3:
+                return ""
+            elif elapsed < 1.0:
+                return f"{int(elapsed*1e3)}毫秒"
+            elif elapsed < 60.0:
+                return f"{int(elapsed)}秒"
+            else:
+                return f"{int(elapsed/60)}分{(int(elapsed)%60)}秒"
+
+        def completedStr(completed: bool) -> str:
+            return "成功" if completed else "失败"
+        
+        def speed2Str(MiB_Speed: float) -> str:
+            if MiB_Speed > 1024.0:
+                return f"{(MiB_Speed/1024):.1f}GiB/s"
+            elif MiB_Speed > 1.0:
+                return f"{MiB_Speed:.1f}MiB/s"
+            else:
+                return f"{(MiB_Speed*1024.0):.1f}KiB/s"
+
+        if cmd in self.log_cmds_translate:
+            cmd = self.log_cmds_translate[cmd]
+        line = f"{cmd}{completedStr(completed)} {filename} {byte2Str(bytes)}"
+        if elapsed > 0:
+            line += f" {elapsed2Str(elapsed)} {speed2Str((bytes/(2**20))/elapsed)}"
         self.log(line)
 
     # --- connection
@@ -1772,7 +1843,7 @@ class FTPHandler(AsyncChat):
                     self.close_when_done()
                 else:
                     self.respond("530 " + msg)
-                self.log(f"USER '{username}' failed login.")
+                self.log(f"用户 '{username}' 登录失败")
             self.on_login_failed(username, password)
 
         self.del_channel()
@@ -1800,7 +1871,7 @@ class FTPHandler(AsyncChat):
         else:
             self.push(f"230-{msg_login}\r\n")
             self.respond("230 ")
-        self.log(f"USER '{self.username}' logged in.")
+        self.log(f"用户 '{self.username}' 登录成功")
         self.authenticated = True
         self.password = password
         self.attempted_logins = 0
