@@ -22,8 +22,6 @@ Copyright (c) 2023-2026 JARK006
     pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
     pyinstaller.exe .\ftpServer.spec
     python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.25.0.0 --product-version=1.25.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
-
-try:
 """
 
 # 标准库导入
@@ -92,7 +90,7 @@ def showHelp():
     global window
     global iconImage
     global uiFont
-    helpTips = """以下是 安全加密连接FTPS 和 多用户配置 说明, 普通用户一般不需要。
+    helpTips = r"""以下是 安全加密连接FTPS 和 多用户配置 说明, 普通用户一般不需要。
 
 ==== FTPS 配置 ====
 
@@ -611,7 +609,7 @@ def hideWindow():
     window.withdraw()
 
 
-def handleExit(strayIcon: pystray._base.Icon):
+def handleExit(strayIcon):
     global window
     global logThreadrunning
     global logThread
@@ -620,6 +618,7 @@ def handleExit(strayIcon: pystray._base.Icon):
     settings.save()
 
     closeServer()
+    strayIcon.visible = False
     strayIcon.stop()
 
     print("等待日志线程退出...")
