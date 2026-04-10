@@ -16,3 +16,5 @@ ftpServer.build
 ftpServer.dist
 ftpServer.installer
 ftpServer.exe
+.omx
+.claude

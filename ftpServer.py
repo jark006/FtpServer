@@ -179,8 +179,6 @@ def showAbout():
     global iconImage
 
     aboutWindows = tk.Toplevel(window)
-    # 自动跟随内容调节大小，适配大字体
-    # aboutWindows.geometry(f"{scale(400)}x{scale(200)}")
     aboutWindows.resizable(False, False)
     aboutWindows.minsize(scale(400), scale(200))
     aboutWindows.title("关于")
