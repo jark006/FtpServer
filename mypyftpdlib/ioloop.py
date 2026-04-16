@@ -58,7 +58,6 @@ IOLoop.instance().loop()
 
 import errno
 import heapq
-import os
 import select
 import socket
 import sys

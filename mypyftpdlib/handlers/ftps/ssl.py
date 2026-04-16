@@ -4,7 +4,6 @@
 
 import contextlib
 import errno
-import os
 import traceback
 
 from OpenSSL import SSL

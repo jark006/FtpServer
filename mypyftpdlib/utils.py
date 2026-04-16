@@ -5,8 +5,7 @@
 import contextlib
 import os
 import socket
-import sys
-from OpenSSL import SSL  # requires "pip install pyopenssl"
+from OpenSSL import SSL
 
 
 __all__ = [

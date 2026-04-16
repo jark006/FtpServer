@@ -36,8 +36,6 @@ without hanging the whole FTP server.
 import errno
 import os
 import select
-import signal
-import sys
 import threading
 import time
 import traceback
@@ -49,10 +47,8 @@ from .log import config_logging
 from .log import debug
 from .log import is_logging_configured
 from .log import logger
-from .prefork import fork_processes
 
 __all__ = ["FTPServer", "ThreadedFTPServer"]
-_BSD = "bsd" in sys.platform
 
 
 # ===================================================================
@@ -505,13 +501,7 @@ class _SpawnerBase(FTPServer):
         if hasattr(t, "terminate"):
             logger.debug(f"terminate()ing task {t!r}")
             try:
-                if not _BSD:
-                    t.terminate()
-                else:
-                    # XXX - On FreeBSD using SIGTERM doesn't work
-                    # as the process hangs on kqueue.control() or
-                    # select.select(). Use SIGKILL instead.
-                    os.kill(t.pid, signal.SIGKILL)
+                t.terminate()
             except ProcessLookupError:
                 pass
 

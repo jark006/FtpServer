@@ -20,7 +20,6 @@ interact with UNIX and Windows password database.
 import os
 
 from .exceptions import AuthenticationFailed
-from .exceptions import AuthorizerError
 
 __all__ = ["DummyAuthorizer"]
 
