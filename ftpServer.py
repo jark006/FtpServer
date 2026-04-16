@@ -43,6 +43,7 @@ from tkinter import ttk, scrolledtext, filedialog, messagebox, font
 import pystray
 import win32clipboard
 import win32con
+import win32com.client
 
 # 本地模块导入
 import Settings
@@ -75,8 +76,8 @@ isIPv6Supported: bool = False
 isIPv4ThreadRunning: bool = False
 isIPv6ThreadRunning: bool = False
 
-certFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.crt")
-keyFilePath = os.path.join(os.path.dirname(sys.argv[0]), "ftpServer.key")
+certFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.crt")
+keyFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.key")
 
 ScaleFactor = 100
 
@@ -627,6 +628,94 @@ def handleExit(strayIcon):
     exit(0)
 
 
+def setAsStartupItem():
+    """
+    将当前程序添加到 Windows 开机启动项。
+    """
+    
+    global isAutoStartServerVar
+
+    # 获取启动目录路径
+    startup_folder = os.path.join(
+        os.environ.get('APPDATA', ''),
+        r'Microsoft\Windows\Start Menu\Programs\Startup'
+    )
+
+    if not startup_folder or not os.path.exists(startup_folder):
+        # 回退方案：使用 shell 特殊文件夹
+        try:
+            startup_folder = ctypes.windll.shell32.SHGetFolderPathW(0, 7, 0, 0)
+        except Exception:
+            pass
+
+    if not startup_folder or not os.path.exists(startup_folder):
+        print(f"无法获取启动目录: {startup_folder}")
+        return
+
+    # 获取当前程序路径
+    exe_path = os.path.abspath(sys.argv[0])
+
+    # 快捷方式文件名
+    shortcut_name = f"{appLabel}.lnk"
+    shortcut_path = os.path.join(startup_folder, shortcut_name)
+
+    try:
+        # 使用 WScript.Shell 创建快捷方式
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortCut(shortcut_path)
+        shortcut.TargetPath = exe_path
+        shortcut.WorkingDirectory = os.path.dirname(exe_path)
+        shortcut.Description = f"{appLabel} {appVersion} - 开机启动"
+        shortcut.save()
+
+        isAutoStartServerVar.set(True)
+        
+        print(f"已添加开机启动项: {shortcut_path}")
+
+    except Exception as e:
+        print(f"创建开机启动项失败: {e}")
+
+
+def removeStartupItem():
+    """
+    移除开机启动项。
+    """
+
+    global isAutoStartServerVar
+    
+    isAutoStartServerVar.set(False)
+    
+    # 获取启动目录路径
+    startup_folder = os.path.join(
+        os.environ.get('APPDATA', ''),
+        r'Microsoft\Windows\Start Menu\Programs\Startup'
+    )
+
+    if not startup_folder or not os.path.exists(startup_folder):
+        try:
+            startup_folder = ctypes.windll.shell32.SHGetFolderPathW(0, 7, 0, 0)
+        except Exception:
+            pass
+
+    if not startup_folder:
+        print(f"无法获取启动目录，无法确认开机启动项是否存在")
+        return
+
+    # 快捷方式文件名
+    shortcut_name = f"{appLabel}.lnk"
+    shortcut_path = os.path.join(startup_folder, shortcut_name)
+
+    if not os.path.exists(shortcut_path):
+        print(f"开机启动项不存在: {shortcut_path}")
+        return
+
+    try:
+        os.remove(shortcut_path)
+        print(f"已移除开机启动项: {shortcut_path}")
+    except Exception as e:
+        print(f"移除开机启动项失败: {e}")
+
+
 def logThreadFun():
     global logThreadrunning
     global loggingWidget
@@ -763,6 +852,8 @@ def main():
     window.protocol("WM_DELETE_WINDOW", hideWindow)
 
     strayMenu = (
+        pystray.MenuItem("设为开机启动", setAsStartupItem),
+        pystray.MenuItem("移除开机启动", removeStartupItem),
         pystray.MenuItem("显示", showWindow, default=True),
         pystray.MenuItem("退出", handleExit),
     )
