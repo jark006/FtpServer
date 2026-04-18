@@ -17,7 +17,7 @@ Copyright (c) 2023-2026 JARK006
 
 # 或者直接安装 requirements.txt
     pip install -r requirements.txt
-    
+
 # pywin32 还需后安装
     pywin32_postinstall -install
 
@@ -85,8 +85,8 @@ isIPv6ThreadRunning: bool = False
 certFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.crt")
 keyFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.key")
 
-ScaleFactor = 100
-
+ScaleFactor:int = 100
+mutex_handle:int = 0
 
 def scale(n: int) -> int:
     global ScaleFactor
@@ -618,6 +618,13 @@ def handleExit(strayIcon):
     global window
     global logThreadrunning
     global logThread
+    global mutex_handle
+
+    # 释放互斥锁
+    if mutex_handle != 0:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CloseHandle(mutex_handle)
+        mutex_handle = 0
 
     updateSettingVars()
     settings.save()
@@ -808,6 +815,58 @@ def getTipsAndUrlList():
     return tipsStr, ftpUrlList
 
 
+def find_and_activate_window() -> bool:
+    """
+    查找并激活已运行实例的窗口
+    """
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.FindWindowW(None, windowsTitle)
+        if hwnd:
+            user32.ShowWindow(hwnd, 9)  # SW_RESTORE = 9
+            user32.SetForegroundWindow(hwnd)
+            return True
+    except Exception as e:
+        print(f"激活已运行窗口时出错: {e}")
+
+    return False
+
+
+def check_single_instance() -> tuple[bool, int]:
+    """
+    检查是否已有实例运行
+
+    Returns:
+        tuple[bool, int]: (是否首次运行, mutex句柄)
+                         如果不是首次运行，mutex句柄为0
+    """
+    mutex_name = f"Local\\{appLabel}_SingleInstance_Mutex"
+
+    try:
+        kernel32 = ctypes.windll.kernel32
+        mutex = kernel32.CreateMutexW(None, False, mutex_name)
+        last_error = kernel32.GetLastError()
+
+        # ERROR_ALREADY_EXISTS = 183
+        if last_error == 183:
+            print("检测到已有实例运行，正在激活窗口...")
+            if find_and_activate_window():
+                return False, 0
+            else:
+                print("警告：无法激活已运行窗口，仍将启动新实例")
+                return True, mutex
+        elif mutex == 0:
+            print(f"创建 Mutex 失败，错误码: {last_error}")
+            return True, 0
+        else:
+            # 首次运行
+            return True, mutex
+
+    except Exception as e:
+        print(f"单实例检查出错: {e}")
+        return True, 0
+
+
 def main():
     global ScaleFactor
     global iconImage
@@ -830,6 +889,13 @@ def main():
     global isReadOnlyVar
     global isGBKVar
     global isAutoStartServerVar
+    global mutex_handle
+
+    # 检查单实例
+    is_first_instance, mutex_handle = check_single_instance()
+    if not is_first_instance:
+        # 已有实例运行，退出
+        return
 
     # 告诉操作系统使用程序自身的dpi适配
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -839,7 +905,7 @@ def main():
     logThread.start()
 
     window = tk.Tk()  # 实例化tk对象
-    ScaleFactor = window.tk.call("tk", "scaling") * 75
+    ScaleFactor = int(window.tk.call("tk", "scaling") * 75)
     uiFont = font.Font(
         family="Consolas", size=font.nametofont("TkTextFont").cget("size")
     )
