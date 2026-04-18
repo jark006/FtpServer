@@ -1,0 +1,6 @@
+Pillow
+pywin32
+pystray
+pyopenssl
+pyasynchat
+windows-curses

@@ -13,7 +13,13 @@ Copyright (c) 2023-2026 JARK006
     pip install pyinstaller nuitka
 
 # 第三方库需求
-    pip install Pillow pypiwin32 pystray pyopenssl pyasynchat windows-curses
+    pip install Pillow pywin32 pystray pyopenssl pyasynchat windows-curses
+
+# 或者直接安装 requirements.txt
+    pip install -r requirements.txt
+    
+# pywin32 还需后安装
+    pywin32_postinstall -install
 
 # 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
     openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500

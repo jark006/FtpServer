@@ -15,7 +15,11 @@ python ftpServer.py
 
 ### 安装依赖
 ```bash
-pip install Pillow pypiwin32 pystray pyopenssl pyasynchat windows-curses
+pip install Pillow pywin32 pystray pyopenssl pyasynchat windows-curses
+# 或者直接安装 requirements.txt
+pip install -r requirements.txt
+# pywin32 还需后安装
+pywin32_postinstall -install
 ```
 
 ### 构建可执行文件
