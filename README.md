@@ -10,17 +10,17 @@
 
 *本软件默认使用 FTP 明文传输数据，如果数据比较敏感，或者网络环境不安全，则可以按以下步骤开启 FTPS 加密传输数据。*
 
-在 `Linux` 或 `MinGW64` 终端使用 `openssl` (命令如下，需填入一些简单信息: 地区/名字/Email等)生成SSL证书文件(ftpServer.key和ftpServer.crt), `不要重命名`文件为其他名称。
+只需生成TLS/SSL证书文件即可启用 `FTPS [TLS/SSL显式加密, TLSv1.3]`，以下两种方式均可:
 
-```sh
-openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
-```
+1. 在 `托盘图标` 右键菜单中选择 `生成 FTPS TLS/SSL 证书`。
 
-直接将 `ftpServer.key` 和 `ftpServer.crt` 放到程序所在目录, 开启服务时若存在这两个文件, 则启用加密传输 `FTPS [TLS/SSL显式加密, TLSv1.3]`。
+2. 在 `Linux` 或 `MinGW64` 终端使用 `openssl` 命令生成TLS/SSL证书文件(`ftpServer.key` 和 `ftpServer.crt`)，`不要重命名` 文件为其他名称，直接将 `ftpServer.key` 和 `ftpServer.crt` 放到程序所在目录，开启服务时若存在这两个文件，则启用加密传输 。
 
-Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `WinSCP` 客户端, 对 FTPS 支持比较好。
+    ```sh
+    openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 3653
+    ```
 
-开启 `FTPS 加密传输` 后, 会影响传输性能, 最大传输速度会降到 `50MiB/s` 左右。若对网络安全没那么高要求, 不建议加密。
+Windows文件管理器对 `显式FTPS` 支持不佳，推荐使用开源客户端软件 [WinSCP](https://winscp.net/eng/index.php)，对 FTPS 支持比较好。开启 FTPS 加密传输后，会 `影响传输性能`，最大传输速度会降到 `50MiB/s` 左右。若对网络安全没那么高要求，不建议加密。
 
 ---
 
@@ -52,7 +52,7 @@ Windows文件管理器对 `显式FTPS` 支持不佳, 推荐使用开源软件 `W
 
 1. 使用 `readonly` 或 `只读` 设置为 `只读权限`。
 1. 使用 `readwrite` 或 `读写` 设置为 `读写权限`。
-1. 使用 `自定义` 权限设置, 从以下权限挑选自行组合(注意大小写)。
+1. 使用 `自定义` 权限设置，从以下权限挑选自行组合(注意大小写)。
 
 参考链接：https://pyftpdlib.readthedocs.io/en/latest/api.html#pyftpdlib.authorizers.DummyAuthorizer.add_user
 

@@ -21,9 +21,6 @@ Copyright (c) 2023-2026 JARK006
 # pywin32 还需后安装
     pywin32_postinstall -install
 
-# 在终端中生成SSL证书 (ftpServer.key, ftpServer.crt 有效期100年) 放到程序所在目录则自动启用 FTPS [TLS/SSL显式加密, TLSv1.3]
-    openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
-
 # 打包 单文件 隐藏终端窗口 以下三选一 (第一条和第二条是同一个，第一条执行过一次产生ftpServer.spec后，以后只需执行第二条)
     pyinstaller.exe -F -w .\ftpServer.py -i .\ftpServer.ico --version-file .\file_version_info.txt
     pyinstaller.exe .\ftpServer.spec
@@ -50,6 +47,7 @@ import pystray
 import win32clipboard
 import win32con
 import win32com.client
+from OpenSSL import crypto
 
 # 本地模块导入
 import Settings
@@ -82,8 +80,8 @@ isIPv6Supported: bool = False
 isIPv4ThreadRunning: bool = False
 isIPv6ThreadRunning: bool = False
 
-certFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.crt")
-keyFilePath = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.key")
+certFilePath: str = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.crt")
+keyFilePath: str = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "ftpServer.key")
 
 ScaleFactor:int = 100
 mutex_handle:int = 0
@@ -103,13 +101,15 @@ def showHelp():
 
 本软件默认使用 FTP 明文传输数据，如果数据比较敏感，或者网络环境不安全，则可以按以下步骤开启 FTPS 加密传输数据。
 
-在 "Linux" 或 "MinGW64" 终端使用 "openssl" (命令如下，需填入一些简单信息: 地区/名字/Email等)生成SSL证书文件(ftpServer.key和ftpServer.crt), "不要重命名"文件为其他名称。
+只需生成TLS/SSL证书文件即可启用 "FTPS [TLS/SSL显式加密, TLSv1.3]"，以下两种方式均可:
 
-openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
+1. 在 "托盘图标" 右键菜单中选择 "生成 FTPS TLS/SSL 证书"。
 
-直接将 ftpServer.key 和 ftpServer.crt 放到程序所在目录, 开启服务时若存在这两个文件, 则启用加密传输 "FTPS [TLS/SSL显式加密, TLSv1.3]"。
-Windows文件管理器对 显式FTPS 支持不佳, 推荐使用开源软件 "WinSCP" FTP客户端, 对 FTPS 支持比较好。
-开启 "FTPS 加密传输" 后, 会影响传输性能, 最大传输速度会降到 50MiB/s 左右。若对网络安全没那么高要求, 不建议加密。
+2. 在 "Linux" 或 "MinGW64" 终端使用 "openssl" 命令生成TLS/SSL证书文件("ftpServer.key" 和 "ftpServer.crt")，"不要重命名" 文件为其他名称，直接将 "ftpServer.key" 和 "ftpServer.crt" 放到程序所在目录，开启服务时若存在这两个文件，则启用加密传输 。
+
+  openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 3653
+
+Windows文件管理器对 "显式FTPS" 支持不佳，推荐使用开源客户端软件 [WinSCP](https://winscp.net/eng/index.php)，对 FTPS 支持比较好。开启 FTPS 加密传输后，会 "影响传输性能"，最大传输速度会降到 "50MiB/s" 左右。若对网络安全没那么高要求，不建议加密。
 
 
 ==== 多用户配置 ====
@@ -530,7 +530,7 @@ def serverThreadFun(IP_Family: str):
         handler.tls_control_required = True
         handler.tls_data_required = True
         print(
-            "[FTP IPv4] 已加载 SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]"
+            "已加载 TLS/SSL 证书文件, 默认开启 FTPS [TLS/SSL显式加密, TLSv1.3]"
         )
     else:
         handler = FTPHandler
@@ -687,6 +687,64 @@ def setAsStartupItem():
 
     except Exception as e:
         print(f"创建开机启动项失败: {e}")
+
+
+def generateTlsCert():
+    """
+    生成 TLS/SSL 证书与密钥 [FTPS]。
+    等价命令: openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 3653
+    默认强制覆盖 certFilePath 与 keyFilePath 指向的原有文件。
+    """
+    global certFilePath
+    global keyFilePath
+
+    try:
+        # 生成 2048 位 RSA 密钥 (无密码保护, 等价 -nodes)
+        key = crypto.PKey()
+        key.generate_key(crypto.TYPE_RSA, 2048)
+
+        # 构造自签名 X.509 v3 证书
+        cert = crypto.X509()
+        cert.set_version(2)  # X.509 v3 (0-indexed)
+        subject = cert.get_subject()
+        subject.CN = "ftpServer"
+        subject.O = "JARK006"
+        subject.OU = "FtpServer"
+        cert.set_serial_number(int(time.time()))
+        cert.gmtime_adj_notBefore(0)
+        cert.gmtime_adj_notAfter(int(10 * 365.2425 * 24 * 60 * 60))  # 10 年有效期
+        cert.set_issuer(subject)  # 自签名, 颁发者与使用者相同
+        cert.set_pubkey(key)
+        cert.sign(key, "sha256")
+
+        # 覆盖写入
+        with open(keyFilePath, "wb") as f:
+            f.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, key))
+        with open(certFilePath, "wb") as f:
+            f.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
+
+        print(f"已生成 TLS/SSL 密钥: {keyFilePath}")
+        print(f"已生成 TLS/SSL 证书: {certFilePath}")
+        print("证书有效期10年，重启服务器后可启用 FTPS [TLS/SSL 显式加密]")
+
+    except Exception as e:
+        print(f"生成 TLS/SSL 证书失败: {e}")
+
+
+def removeTlsCert():
+    """
+    移除 TLS/SSL 证书与密钥 [FTPS]。
+    """
+    global certFilePath
+    global keyFilePath
+
+    try:
+        os.remove(certFilePath)
+        os.remove(keyFilePath)
+        print(f"已移除 TLS/SSL 证书: {certFilePath}")
+        print(f"已移除 TLS/SSL 密钥: {keyFilePath}")
+    except Exception as e:
+        print(f"移除 TLS/SSL 证书失败: {e}")
 
 
 def removeStartupItem():
@@ -926,6 +984,8 @@ def main():
     strayMenu = (
         pystray.MenuItem("设为开机启动", setAsStartupItem),
         pystray.MenuItem("移除开机启动", removeStartupItem),
+        pystray.MenuItem("生成TLS/SSL证书[FTPS]", generateTlsCert),
+        pystray.MenuItem("移除TLS/SSL证书[FTPS]", removeTlsCert),
         pystray.MenuItem("显示", showWindow, default=True),
         pystray.MenuItem("退出", handleExit),
     )
@@ -1077,7 +1137,7 @@ def main():
         window.withdraw()
 
     if os.path.exists(certFilePath) and os.path.exists(keyFilePath):
-        print("检测到 SSL 证书文件, 默认使用 FTPS [TLS/SSL显式加密, TLSv1.3]")
+        print("检测到 TLS/SSL 证书文件, 默认使用 FTPS [TLS/SSL显式加密, TLSv1.3]")
 
     window.mainloop()
 

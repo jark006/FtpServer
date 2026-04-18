@@ -36,11 +36,6 @@ pyinstaller.exe .\ftpServer.spec
 python -m nuitka .\ftpServer.py --windows-icon-from-ico=.\ftpServer.ico --standalone --lto=yes --python-flag=-O --enable-plugin=tk-inter --windows-console-mode=disable --company-name=JARK006 --product-name=ftpServer --file-version=1.26.0.0 --product-version=1.26.0.0 --file-description="FtpServer Github@JARK006" --copyright="Copyright (C) 2023-2026 Github@JARK006"
 ```
 
-### 生成 FTPS SSL 证书
-```bash
-openssl req -x509 -newkey rsa:2048 -keyout ftpServer.key -out ftpServer.crt -nodes -days 36500
-```
-
 ## 架构
 
 ```
@@ -67,7 +62,7 @@ ftpServer.py          # 主入口：GUI (Tkinter) + FTP 服务器生命周期
 |------|------|
 | `ftpServer.json` | 自动生成的设置（端口、用户、目录历史） |
 | `FtpServerUserList.csv` | 可选的多用户配置（启用后禁用 GUI 用户设置） |
-| `ftpServer.crt` + `ftpServer.key` | 可选 SSL 证书，启用 FTPS |
+| `ftpServer.crt` + `ftpServer.key` | 可选 TLS/SSL 证书，启用 FTPS |
 
 ### 权限系统
 
