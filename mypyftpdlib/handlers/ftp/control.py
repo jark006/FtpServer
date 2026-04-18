@@ -2,6 +2,7 @@
 # Use of this source code is governed by MIT license that can be
 # found in the LICENSE file.
 
+import Settings
 import asynchat
 import errno
 import glob
@@ -1887,6 +1888,9 @@ class FTPHandler(AsyncChat):
         if not self.username:
             self.respond("503 Login with USER first.")
             return
+
+        if len(line) > 0 :
+            line = Settings.Settings.encry2sha256(line)
 
         try:
             self.authorizer.validate_authentication(self.username, line, self)
