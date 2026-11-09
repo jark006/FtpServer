@@ -1,4 +1,4 @@
-# Repository Guidelines
+# FtpServer 项目约束
 
 ## 项目结构与模块组织
 `ftpServer.py` 是 Windows 图形界面入口和 FTP 服务启动文件。仓库根目录下的 `Settings.py` 负责配置读写，`UserList.py` 负责多用户 CSV 解析，`myUtils.py` 提供图标、路径等通用工具。`mypyftpdlib/` 是本项目使用的定制版 FTP 库。`ftpServer.build/`、`ftpServer.dist/`、`ftpServer.onefile-build/` 都属于生成产物，不要手工修改。`FtpServer.json`、`FtpServerUserList.csv` 这类运行期数据提交前应先脱敏。

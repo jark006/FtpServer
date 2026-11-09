@@ -895,14 +895,11 @@ def check_single_instance() -> tuple[bool, int]:
 
         # ERROR_ALREADY_EXISTS = 183
         if last_error == 183:
-            logger.info("检测到已有实例运行，正在激活窗口...")
             if find_and_activate_window():
                 return False, 0
             else:
-                logger.warning("警告：无法激活已运行窗口，仍将启动新实例")
                 return True, mutex
         elif mutex == 0:
-            logger.error(f"创建 Mutex 失败，错误码: {last_error}")
             return True, 0
         else:
             # 首次运行
